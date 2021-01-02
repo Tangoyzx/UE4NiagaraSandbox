@@ -17,35 +17,51 @@ void AMultibodySimulator::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	for (int i = 0; i < MassPoints.Num(); ++i)
+	if (DeltaSeconds < KINDA_SMALL_NUMBER)
 	{
-		AMassPoint* MassPoint = Cast<AMassPoint>(MassPoints[i]);
+		return;
+	}
 
-		for (int j = 0; j < MassPoints.Num(); ++j)
+	float Delta = DeltaSeconds / NumIteration;
+
+	for (int32 IterCount = 0; IterCount < NumIteration; ++IterCount)
+	{
+		for (int32 i = 0; i < MassPoints.Num(); ++i)
 		{
-			if (i == j)
+			AMassPoint* MassPoint = Cast<AMassPoint>(MassPoints[i]);
+
+			for (int j = 0; j < MassPoints.Num(); ++j)
 			{
-				continue;
+				if (i == j)
+				{
+					continue;
+				}
+
+				AMassPoint* AnotherMassPoint = Cast<AMassPoint>(MassPoints[j]);
+
+				// 前フレームの位置を用いて速度を計算する
+				const FVector& Diff = AnotherMassPoint->Position - MassPoint->Position;
+				float DistSquared = Diff.SizeSquared();
+				const FVector& Acceleration
+					= Gravity * AnotherMassPoint->Mass
+					/ FMath::Max(DistSquared, 1.0f) // 0除算にならないよう、最低距離を1mとする
+					* Diff.GetSafeNormal();
+
+				MassPoint->Velocity += Acceleration * Delta;
 			}
+		}
 
-			AMassPoint* AnotherMassPoint = Cast<AMassPoint>(MassPoints[j]);
-
-			// 前フレームの位置を用いて速度を計算する
-			const FVector& Diff = AnotherMassPoint->GetActorLocation() - MassPoint->GetActorLocation();
-			float DistSquared = Diff.SizeSquared();
-			const FVector& Acceleration
-				= Gravity * AnotherMassPoint->Mass
-				/ FMath::Max(DistSquared, 1.0f) // 0除算にならないよう、最低距離を1mとする
-				* Diff.GetSafeNormal();
-
-			MassPoint->Velocity = MassPoint->Velocity + Acceleration * DeltaSeconds;
+		for (int32 i = 0; i < MassPoints.Num(); ++i)
+		{
+			AMassPoint* MassPoint = Cast<AMassPoint>(MassPoints[i]);
+			MassPoint->Position += MassPoint->Velocity * Delta;
 		}
 	}
 
-	for (int i = 0; i < MassPoints.Num(); ++i)
+	for (int32 i = 0; i < MassPoints.Num(); ++i)
 	{
 		AMassPoint* MassPoint = Cast<AMassPoint>(MassPoints[i]);
-		MassPoint->SetActorLocation(MassPoint->GetActorLocation() + MassPoint->Velocity * DeltaSeconds);
+		MassPoint->SetActorLocation(MassPoint->Position);
 	}
 }
 

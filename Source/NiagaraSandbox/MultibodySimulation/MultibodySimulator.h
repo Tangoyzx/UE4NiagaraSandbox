@@ -15,9 +15,13 @@ protected:
 	virtual void Tick(float DeltaSeconds) override;
 
 protected:
-	/** Constant of gravitation. The unit is m^3 * kg*^-1 * s^-2. */
+	/** Constant of gravitation. The unit is m^3 * kg*^-1 * s^-2. 6.6743015E-11f is correct value. */
 	UPROPERTY(EditAnywhere, Category = Simulation, meta = (AllowPrivateAccess = "true"))
-	float Gravity = 6.6743015E-11f;
+	float Gravity = 10000.0f;
+
+	/** Iteration on a frame. */
+	UPROPERTY(EditAnywhere, Category = Simulation, meta = (AllowPrivateAccess = "true", ClampMin = "1", ClampMax = "100", UIMin = "1", UIMax = "100"))
+	int32 NumIteration = 1;
 
 private:
 	UPROPERTY(Transient)

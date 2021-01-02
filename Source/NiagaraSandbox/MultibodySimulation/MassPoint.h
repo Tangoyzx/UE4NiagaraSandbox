@@ -18,12 +18,13 @@ public:
 
 	/** Mass. The unit is kilo gram. */
 	UPROPERTY(EditAnywhere, Category = Simulation, meta = (AllowPrivateAccess = "true"))
-	float Mass = 1.0f;
+	float Mass = 1000.0f;
 
 	/** Initial velocity. */
 	UPROPERTY(EditAnywhere, Category = Simulation, meta = (AllowPrivateAccess = "true"))
 	FVector InitialVelocity = FVector::ZeroVector;
 
+	FVector Position = FVector::ZeroVector;
 	FVector Velocity = FVector::ZeroVector;
 
 protected:

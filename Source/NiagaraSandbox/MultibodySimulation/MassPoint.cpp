@@ -12,5 +12,6 @@ void AMassPoint::BeginPlay()
 	Super::BeginPlay();
 
 	Velocity = InitialVelocity;
+	Position = GetActorLocation();
 }
 
