@@ -40,7 +40,7 @@ void AMultibodySimulator::Tick(float DeltaSeconds)
 
 				AMassPoint* AnotherMassPoint = Cast<AMassPoint>(MassPoints[j]);
 
-				// 位置変数の前フレームの値を用いて速度を計算する
+				// 位置変数の前サブステップの値を用いて速度を計算する
 				const FVector& Diff = AnotherMassPoint->Position - MassPoint->Position;
 				float DistSquared = Diff.SizeSquared();
 				const FVector& Acceleration
@@ -52,7 +52,7 @@ void AMultibodySimulator::Tick(float DeltaSeconds)
 			}
 		}
 
-		// 速度から今フレームの位置を更新する
+		// 速度から今サブステップの位置を更新する
 		for (int32 i = 0; i < MassPoints.Num(); ++i)
 		{
 			AMassPoint* MassPoint = Cast<AMassPoint>(MassPoints[i]);
