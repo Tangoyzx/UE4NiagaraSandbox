@@ -15,13 +15,16 @@ public:
 
 	virtual void PostRegisterAllComponents() override;
 
+	virtual void BeginPlay() override;
+	virtual void Tick( float DeltaSeconds ) override;
+
 	/** Set true for this actor to self-destruct when the Niagara system finishes, false otherwise */
-	UFUNCTION(BlueprintCallable, Category=NiagaraActor)
+	UFUNCTION(BlueprintCallable)
 	void SetDestroyOnSystemFinish(bool bShouldDestroyOnSystemFinish);
 
 private:
 	/** Pointer to System component */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category=NiagaraActor, meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	class UNiagaraComponent* NiagaraComponent;
 
 #if WITH_EDITORONLY_DATA
@@ -42,6 +45,12 @@ private:
 	/** Callback when Niagara system finishes. */
 	UFUNCTION(CallInEditor)
 	void OnNiagaraSystemFinished(UNiagaraComponent* FinishedComponent);
+
+	UPROPERTY(EditAnywhere)
+	int32 NumParticles = 100;
+
+	UPROPERTY(Transient)
+	TArray<FVector> Positions;
 
 public:
 	/** Returns NiagaraComponent subobject **/

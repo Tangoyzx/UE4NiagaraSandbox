@@ -5,9 +5,51 @@
 #include "Components/BillboardComponent.h"
 #include "NiagaraComponent.h"
 #include "NiagaraSystem.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraDataInterfaceArrayFloat.h"
+
+namespace
+{
+	// UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector()を参考にしている
+	void SetNiagaraArrayVector(UNiagaraComponent* NiagaraSystem, FName OverrideName, const TArray<FVector>& ArrayData)
+	{
+		if (UNiagaraDataInterfaceArrayFloat3* ArrayDI = UNiagaraFunctionLibrary::GetDataInterface<UNiagaraDataInterfaceArrayFloat3>(NiagaraSystem, OverrideName))
+		{
+			FRWScopeLock WriteLock(ArrayDI->ArrayRWGuard, SLT_Write);
+			ArrayDI->FloatData = ArrayData;
+			ArrayDI->MarkRenderDataDirty();
+		}
+	}
+}
+
+void ASPHSimulatorCPU::BeginPlay()
+{
+	Super::BeginPlay();
+
+	Positions.SetNum(NumParticles);
+
+	Positions[0] = FVector::ZeroVector;
+	Positions[1] = FVector(0.0f, 100.0f, 0.0f);
+	Positions[2] = FVector(0.0f, 0.0f, 100.0f);
+
+	// Tick()で設定しても、レベルにNiagaraSystemが最初から配置されていると、初回のスポーンでは配列は初期値を使ってしまい
+	//間に合わないのでBeginPlay()でも設定する
+	NiagaraComponent->SetNiagaraVariableInt("NumParticles", NumParticles);
+	SetNiagaraArrayVector(NiagaraComponent, FName("Positions"), Positions);
+}
+
+void ASPHSimulatorCPU::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	NiagaraComponent->SetNiagaraVariableInt("NumParticles", NumParticles);
+	SetNiagaraArrayVector(NiagaraComponent, FName("Positions"), Positions);
+}
 
 ASPHSimulatorCPU::ASPHSimulatorCPU()
 {
+	PrimaryActorTick.bCanEverTick = true;
+
 	NiagaraComponent = CreateDefaultSubobject<UNiagaraComponent>(TEXT("NiagaraComponent0"));
 
 	RootComponent = NiagaraComponent;
