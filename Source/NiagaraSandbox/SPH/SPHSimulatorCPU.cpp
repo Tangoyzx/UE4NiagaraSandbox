@@ -28,6 +28,7 @@ void ASPHSimulatorCPU::BeginPlay()
 
 	Positions.SetNum(NumParticles);
 	Velocities.SetNum(NumParticles);
+	Accelerations.SetNum(NumParticles);
 	Positions3D.SetNum(NumParticles);
 
 	Positions[0] = FVector2D::ZeroVector;
@@ -38,9 +39,10 @@ void ASPHSimulatorCPU::BeginPlay()
 	Velocities[1] = FVector2D::ZeroVector;
 	Velocities[2] = FVector2D::ZeroVector;
 
-	Positions3D[0] = FVector(0.0f, Positions[0].X, Positions[0].Y);
-	Positions3D[1] = FVector(0.0f, Positions[1].X, Positions[1].Y);
-	Positions3D[2] = FVector(0.0f, Positions[2].X, Positions[2].Y);
+	for (int32 i = 0; i < NumParticles; ++i)
+	{
+		Positions3D[i] = FVector(0.0f, Positions[i].X, Positions[i].Y);
+	}
 
 	// Tick()で設定しても、レベルにNiagaraSystemが最初から配置されていると、初回のスポーンでは配列は初期値を使ってしまい
 	//間に合わないのでBeginPlay()でも設定する
@@ -63,9 +65,11 @@ void ASPHSimulatorCPU::Tick(float DeltaSeconds)
 		}
 	}
 
-	Positions3D[0] = FVector(0.0f, Positions[0].X, Positions[0].Y);
-	Positions3D[1] = FVector(0.0f, Positions[1].X, Positions[1].Y);
-	Positions3D[2] = FVector(0.0f, Positions[2].X, Positions[2].Y);
+
+	for (int32 i = 0; i < NumParticles; ++i)
+	{
+		Positions3D[i] = FVector(0.0f, Positions[i].X, Positions[i].Y);
+	}
 
 	NiagaraComponent->SetNiagaraVariableInt("NumParticles", NumParticles);
 	SetNiagaraArrayVector(NiagaraComponent, FName("Positions"), Positions3D);
@@ -73,16 +77,49 @@ void ASPHSimulatorCPU::Tick(float DeltaSeconds)
 
 void ASPHSimulatorCPU::Simulate(float DeltaSeconds)
 {
+	// TODO:初期化はあとで加速度を計算するようになったら不要になるのであとで消す
+	for (int32 i = 0; i < NumParticles; ++i)
+	{
+		Accelerations[i] = FVector2D::ZeroVector;
+	}
+
 	ApplyBoundaryPenalty(DeltaSeconds);
 	Integrate(DeltaSeconds);
 }
 
 void ASPHSimulatorCPU::ApplyBoundaryPenalty(float DeltaSeconds)
 {
+	//TODO: SPHって言っても加速度使わずにPBD使ってもいいはずなんだよな
+	for (int32 i = 0; i < NumParticles; ++i)
+	{
+		// 上境界
+		Accelerations[i] += FMath::Max(0.0f, Positions[i].Y - BoundaryBox.Max.Y) * BoundaryStiffness * FVector2D(0.0f, -1.0f);
+		// 下境界
+		Accelerations[i] += FMath::Max(0.0f, BoundaryBox.Min.Y - Positions[i].Y) * BoundaryStiffness * FVector2D(0.0f, 1.0f);
+		// 左境界
+		Accelerations[i] += FMath::Max(0.0f, BoundaryBox.Min.X - Positions[i].X) * BoundaryStiffness * FVector2D(1.0f, 0.0f);
+		// 右境界
+		Accelerations[i] += FMath::Max(0.0f, Positions[i].X - BoundaryBox.Max.X) * BoundaryStiffness * FVector2D(-1.0f, 0.0f);
+	}
 }
 
 void ASPHSimulatorCPU::Integrate(float DeltaSeconds)
 {
+	for (int32 i = 0; i < NumParticles; ++i)
+	{
+		Accelerations[i] += FVector2D(0.0f, Gravity);
+	}
+
+	// 前進オイラー法
+	for (int32 i = 0; i < NumParticles; ++i)
+	{
+		Velocities[i] += Accelerations[i] * DeltaSeconds;
+	}
+
+	for (int32 i = 0; i < NumParticles; ++i)
+	{
+		Positions[i] += Velocities[i] * DeltaSeconds;
+	}
 }
 
 ASPHSimulatorCPU::ASPHSimulatorCPU()

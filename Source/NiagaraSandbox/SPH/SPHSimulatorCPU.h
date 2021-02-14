@@ -51,13 +51,19 @@ private:
 
 	TArray<FVector2D> Positions;
 	TArray<FVector2D> Velocities;
+	// 加速度は毎フレーム計算するのでフレーム間のひきつぎはないのだが、使用メモリやTArrayの生成負荷をおさえるために
+	// 使いまわしている
+	TArray<FVector2D> Accelerations;
 	TArray<FVector> Positions3D;
 
 	UPROPERTY(EditAnywhere)
 	int32 NumIterations = 10;
 
 	UPROPERTY(EditAnywhere)
-	FBox2D BoundaryBox = FBox2D(FVector2D(-100.0f, -100.0f), FVector2D(100.0f, 0.0f));
+	FBox2D BoundaryBox = FBox2D(FVector2D(-100.0f, 0.0f), FVector2D(100.0f, 100.0f));
+
+	UPROPERTY(EditAnywhere)
+	float BoundaryStiffness = 100.0f;
 
 	UPROPERTY(EditAnywhere)
 	float Gravity = -981.0f;
