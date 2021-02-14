@@ -69,6 +69,8 @@ private:
 	float Gravity = -981.0f;
 
 	void Simulate(float DeltaSeconds);
+	void ApplyPressure(float DeltaSeconds);
+	void ApplyViscocity(float DeltaSeconds);
 	void ApplyBoundaryPenalty(float DeltaSeconds);
 	void Integrate(float DeltaSeconds);
 

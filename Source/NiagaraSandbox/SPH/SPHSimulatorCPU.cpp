@@ -83,8 +83,18 @@ void ASPHSimulatorCPU::Simulate(float DeltaSeconds)
 		Accelerations[i] = FVector2D::ZeroVector;
 	}
 
+	ApplyPressure(DeltaSeconds);
+	ApplyViscocity(DeltaSeconds);
 	ApplyBoundaryPenalty(DeltaSeconds);
 	Integrate(DeltaSeconds);
+}
+
+void ASPHSimulatorCPU::ApplyPressure(float DeltaSeconds)
+{
+}
+
+void ASPHSimulatorCPU::ApplyViscocity(float DeltaSeconds)
+{
 }
 
 void ASPHSimulatorCPU::ApplyBoundaryPenalty(float DeltaSeconds)
