@@ -27,23 +27,62 @@ void ASPHSimulatorCPU::BeginPlay()
 	Super::BeginPlay();
 
 	Positions.SetNum(NumParticles);
+	Velocities.SetNum(NumParticles);
+	Positions3D.SetNum(NumParticles);
 
-	Positions[0] = FVector::ZeroVector;
-	Positions[1] = FVector(0.0f, 100.0f, 0.0f);
-	Positions[2] = FVector(0.0f, 0.0f, 100.0f);
+	Positions[0] = FVector2D::ZeroVector;
+	Positions[1] = FVector2D(10.0f, 0.0f);
+	Positions[2] = FVector2D(0.0f, 10.0f);
+
+	Velocities[0] = FVector2D::ZeroVector;
+	Velocities[1] = FVector2D::ZeroVector;
+	Velocities[2] = FVector2D::ZeroVector;
+
+	Positions3D[0] = FVector(0.0f, Positions[0].X, Positions[0].Y);
+	Positions3D[1] = FVector(0.0f, Positions[1].X, Positions[1].Y);
+	Positions3D[2] = FVector(0.0f, Positions[2].X, Positions[2].Y);
 
 	// Tick()で設定しても、レベルにNiagaraSystemが最初から配置されていると、初回のスポーンでは配列は初期値を使ってしまい
 	//間に合わないのでBeginPlay()でも設定する
 	NiagaraComponent->SetNiagaraVariableInt("NumParticles", NumParticles);
-	SetNiagaraArrayVector(NiagaraComponent, FName("Positions"), Positions);
+	SetNiagaraArrayVector(NiagaraComponent, FName("Positions"), Positions3D);
 }
 
 void ASPHSimulatorCPU::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
+	if (DeltaSeconds > KINDA_SMALL_NUMBER)
+	{
+		// DeltaSecondsの値の変動に関わらず、NumIterationで均等分割する。フレームレートの変化を考慮していない方法。
+		float SubStepDeltaSeconds = DeltaSeconds / NumIterations;
+
+		for (int32 i = 0; i < NumIterations; ++i)
+		{
+			Simulate(SubStepDeltaSeconds);
+		}
+	}
+
+	Positions3D[0] = FVector(0.0f, Positions[0].X, Positions[0].Y);
+	Positions3D[1] = FVector(0.0f, Positions[1].X, Positions[1].Y);
+	Positions3D[2] = FVector(0.0f, Positions[2].X, Positions[2].Y);
+
 	NiagaraComponent->SetNiagaraVariableInt("NumParticles", NumParticles);
-	SetNiagaraArrayVector(NiagaraComponent, FName("Positions"), Positions);
+	SetNiagaraArrayVector(NiagaraComponent, FName("Positions"), Positions3D);
+}
+
+void ASPHSimulatorCPU::Simulate(float DeltaSeconds)
+{
+	ApplyBoundaryPenalty(DeltaSeconds);
+	Integrate(DeltaSeconds);
+}
+
+void ASPHSimulatorCPU::ApplyBoundaryPenalty(float DeltaSeconds)
+{
+}
+
+void ASPHSimulatorCPU::Integrate(float DeltaSeconds)
+{
 }
 
 ASPHSimulatorCPU::ASPHSimulatorCPU()

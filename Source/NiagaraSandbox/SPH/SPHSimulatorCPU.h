@@ -49,8 +49,22 @@ private:
 	UPROPERTY(EditAnywhere)
 	int32 NumParticles = 100;
 
-	UPROPERTY(Transient)
-	TArray<FVector> Positions;
+	TArray<FVector2D> Positions;
+	TArray<FVector2D> Velocities;
+	TArray<FVector> Positions3D;
+
+	UPROPERTY(EditAnywhere)
+	int32 NumIterations = 10;
+
+	UPROPERTY(EditAnywhere)
+	FBox2D BoundaryBox = FBox2D(FVector2D(-100.0f, -100.0f), FVector2D(100.0f, 0.0f));
+
+	UPROPERTY(EditAnywhere)
+	float Gravity = -981.0f;
+
+	void Simulate(float DeltaSeconds);
+	void ApplyBoundaryPenalty(float DeltaSeconds);
+	void Integrate(float DeltaSeconds);
 
 public:
 	/** Returns NiagaraComponent subobject **/
