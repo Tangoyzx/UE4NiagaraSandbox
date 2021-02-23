@@ -115,7 +115,7 @@ void ASPHSimulatorCPU::CalculateDensity()
 				continue;
 			}
 
-			const FVector2D& DiffPos = Positions[i] - Positions[j];
+			const FVector2D& DiffPos = Positions[j] - Positions[i];
 			float DistanceSq = DiffPos.SizeSquared();
 			if (DistanceSq < SmoothLenSq)
 			{
@@ -151,7 +151,7 @@ void ASPHSimulatorCPU::ApplyPressure()
 				continue;
 			}
 
-			const FVector2D& DiffPos = Positions[i] - Positions[j];
+			const FVector2D& DiffPos = Positions[j] - Positions[i];
 			float DistanceSq = DiffPos.SizeSquared();
 			if (DistanceSq < SmoothLenSq)
 			{
@@ -181,7 +181,7 @@ void ASPHSimulatorCPU::ApplyViscocity()
 				continue;
 			}
 
-			const FVector2D& DiffPos = Positions[i] - Positions[j];
+			const FVector2D& DiffPos = Positions[j] - Positions[i];
 			float DistanceSq = DiffPos.SizeSquared();
 			if (DistanceSq < SmoothLenSq)
 			{
