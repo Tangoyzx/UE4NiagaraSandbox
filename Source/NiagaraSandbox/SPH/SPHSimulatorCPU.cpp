@@ -30,6 +30,7 @@ void ASPHSimulatorCPU::BeginPlay()
 	Velocities.SetNum(NumParticles);
 	Accelerations.SetNum(NumParticles);
 	Densities.SetNum(NumParticles);
+	Pressures.SetNum(NumParticles);
 	Positions3D.SetNum(NumParticles);
 
 	Positions[0] = FVector2D::ZeroVector;
@@ -50,8 +51,9 @@ void ASPHSimulatorCPU::BeginPlay()
 	NiagaraComponent->SetNiagaraVariableInt("NumParticles", NumParticles);
 	SetNiagaraArrayVector(NiagaraComponent, FName("Positions"), Positions3D);
 
-	DensityCoef = Mass * 4.0f / PI / FMath::Pow(SmoothLength, 8.0f);
-	LaplacianViscosityCoef = 20.0f / 3.0f / PI / FMath::Pow(SmoothLength, 5.0f);
+	DensityCoef = Mass * 4.0f / PI / FMath::Pow(SmoothLength, 8);
+	GradientPressureCoef = Mass * -30.0f / PI / FMath::Pow(SmoothLength, 5);
+	LaplacianViscosityCoef = Mass * 20.0f / 3.0f / PI / FMath::Pow(SmoothLength, 5);
 }
 
 void ASPHSimulatorCPU::Tick(float DeltaSeconds)
@@ -88,6 +90,7 @@ void ASPHSimulatorCPU::Simulate(float DeltaSeconds)
 	}
 
 	CalculateDensity();
+	CalculatePressure();
 	ApplyPressure();
 	ApplyViscocity();
 	ApplyBoundaryPenalty();
@@ -123,8 +126,43 @@ void ASPHSimulatorCPU::CalculateDensity()
 	}
 }
 
+void ASPHSimulatorCPU::CalculatePressure()
+{
+	static float SmoothLenSq = SmoothLength * SmoothLength; 
+	for (int32 i = 0; i < NumParticles; ++i)
+	{
+		Pressures[i] = PressureStiffness * FMath::Max(FMath::Pow(Densities[i] / RestDensity, 7), 0.0f);
+	}
+}
+
 void ASPHSimulatorCPU::ApplyPressure()
 {
+	// TODO:ƒƒ“ƒo•Ï”‚É‚µ‚½•û‚ª‚¢‚¢‚©‚àB‘¼‚ÌŠÖ”‚Å‚àŒvŽZ‚µ‚Ä‚¢‚é
+	static float SmoothLenSq = SmoothLength * SmoothLength;
+
+	for (int32 i = 0; i < NumParticles; ++i)
+	{
+		FVector2D AccumPressure = FVector2D::ZeroVector;
+
+		for (int32 j = 0; j < NumParticles; ++j)
+		{
+			if (i == j)
+			{
+				continue;
+			}
+
+			const FVector2D& DiffPos = Positions[i] - Positions[j];
+			float DistanceSq = DiffPos.SizeSquared();
+			if (DistanceSq < SmoothLenSq)
+			{
+				float AvgPressure = 0.5f * (Pressures[i] + Pressures[j]);
+				float DiffLen = SmoothLength - DiffPos.Size();
+				AccumPressure += GradientPressureCoef * AvgPressure / Densities[j] * DiffLen * DiffLen / DiffPos.Size() * DiffPos;
+			}
+		}
+
+		Accelerations[i] += AccumPressure / Densities[i];
+	}
 }
 
 void ASPHSimulatorCPU::ApplyViscocity()
@@ -152,7 +190,7 @@ void ASPHSimulatorCPU::ApplyViscocity()
 			}
 		}
 
-		Accelerations[i] += ViscosityCoef * AccumViscocity / Densities[i];
+		Accelerations[i] += Viscosity * AccumViscocity / Densities[i];
 	}
 }
 

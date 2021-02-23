@@ -68,11 +68,18 @@ private:
 	float SmoothLength = 50.0f;
 
 	UPROPERTY(EditAnywhere)
-	float ViscosityCoef = 1.0f;
+	float RestDensity = 1.0f;
+
+	UPROPERTY(EditAnywhere)
+	float PressureStiffness = 1.0f;
+
+	UPROPERTY(EditAnywhere)
+	float Viscosity = 1.0f;
 
 private:
 	void Simulate(float DeltaSeconds);
 	void CalculateDensity();
+	void CalculatePressure();
 	void ApplyPressure();
 	void ApplyViscocity();
 	void ApplyBoundaryPenalty();
@@ -85,8 +92,10 @@ private:
 	// Žg‚¢‚Ü‚í‚µ‚Ä‚¢‚é
 	TArray<FVector2D> Accelerations;
 	TArray<float> Densities;
+	TArray<float> Pressures;
 	TArray<FVector> Positions3D;
 	float DensityCoef = 0.0f;
+	float GradientPressureCoef = 0.0f;
 	float LaplacianViscosityCoef = 0.0f;
 
 public:
