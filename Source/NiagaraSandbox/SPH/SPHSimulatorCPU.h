@@ -49,13 +49,6 @@ private:
 	UPROPERTY(EditAnywhere)
 	int32 NumParticles = 100;
 
-	TArray<FVector2D> Positions;
-	TArray<FVector2D> Velocities;
-	// 加速度は毎フレーム計算するのでフレーム間のひきつぎはないのだが、使用メモリやTArrayの生成負荷をおさえるために
-	// 使いまわしている
-	TArray<FVector2D> Accelerations;
-	TArray<FVector> Positions3D;
-
 	UPROPERTY(EditAnywhere)
 	int32 NumIterations = 10;
 
@@ -68,11 +61,33 @@ private:
 	UPROPERTY(EditAnywhere)
 	float Gravity = -981.0f;
 
+	UPROPERTY(EditAnywhere)
+	float Mass = 1.0f; // とりあえずすべて同じにしている
+
+	UPROPERTY(EditAnywhere)
+	float SmoothLength = 50.0f;
+
+	UPROPERTY(EditAnywhere)
+	float ViscosityCoef = 1.0f;
+
+private:
 	void Simulate(float DeltaSeconds);
-	void ApplyPressure(float DeltaSeconds);
-	void ApplyViscocity(float DeltaSeconds);
-	void ApplyBoundaryPenalty(float DeltaSeconds);
+	void CalculateDensity();
+	void ApplyPressure();
+	void ApplyViscocity();
+	void ApplyBoundaryPenalty();
 	void Integrate(float DeltaSeconds);
+
+private:
+	TArray<FVector2D> Positions;
+	TArray<FVector2D> Velocities;
+	// 加速度は毎フレーム計算するのでフレーム間のひきつぎはないのだが、使用メモリやTArrayの生成負荷をおさえるために
+	// 使いまわしている
+	TArray<FVector2D> Accelerations;
+	TArray<float> Densities;
+	TArray<FVector> Positions3D;
+	float DensityCoef = 0.0f;
+	float LaplacianViscosityCoef = 0.0f;
 
 public:
 	/** Returns NiagaraComponent subobject **/

@@ -29,6 +29,7 @@ void ASPHSimulatorCPU::BeginPlay()
 	Positions.SetNum(NumParticles);
 	Velocities.SetNum(NumParticles);
 	Accelerations.SetNum(NumParticles);
+	Densities.SetNum(NumParticles);
 	Positions3D.SetNum(NumParticles);
 
 	Positions[0] = FVector2D::ZeroVector;
@@ -48,6 +49,9 @@ void ASPHSimulatorCPU::BeginPlay()
 	//間に合わないのでBeginPlay()でも設定する
 	NiagaraComponent->SetNiagaraVariableInt("NumParticles", NumParticles);
 	SetNiagaraArrayVector(NiagaraComponent, FName("Positions"), Positions3D);
+
+	DensityCoef = Mass * 4.0f / PI / FMath::Pow(SmoothLength, 8.0f);
+	LaplacianViscosityCoef = 20.0f / 3.0f / PI / FMath::Pow(SmoothLength, 5.0f);
 }
 
 void ASPHSimulatorCPU::Tick(float DeltaSeconds)
@@ -83,21 +87,76 @@ void ASPHSimulatorCPU::Simulate(float DeltaSeconds)
 		Accelerations[i] = FVector2D::ZeroVector;
 	}
 
-	ApplyPressure(DeltaSeconds);
-	ApplyViscocity(DeltaSeconds);
-	ApplyBoundaryPenalty(DeltaSeconds);
+	CalculateDensity();
+	ApplyPressure();
+	ApplyViscocity();
+	ApplyBoundaryPenalty();
 	Integrate(DeltaSeconds);
 }
 
-void ASPHSimulatorCPU::ApplyPressure(float DeltaSeconds)
+void ASPHSimulatorCPU::CalculateDensity()
+{
+	static float SmoothLenSq = SmoothLength * SmoothLength;
+
+	for (int32 i = 0; i < NumParticles; ++i)
+	{
+		Densities[i] = 0.0f;
+	}
+
+	for (int32 i = 0; i < NumParticles; ++i)
+	{
+		for (int32 j = 0; j < NumParticles; ++j)
+		{
+			if (i == j)
+			{
+				continue;
+			}
+
+			const FVector2D& DiffPos = Positions[i] - Positions[j];
+			float DistanceSq = DiffPos.SizeSquared();
+			if (DistanceSq < SmoothLenSq)
+			{
+				float DiffLenSq = SmoothLenSq - DistanceSq;
+				Densities[i] += DensityCoef * DiffLenSq * DiffLenSq * DiffLenSq;
+			}
+		}
+	}
+}
+
+void ASPHSimulatorCPU::ApplyPressure()
 {
 }
 
-void ASPHSimulatorCPU::ApplyViscocity(float DeltaSeconds)
+void ASPHSimulatorCPU::ApplyViscocity()
 {
+	// TODO:メンバ変数にした方がいいかも。他の関数でも計算している
+	static float SmoothLenSq = SmoothLength * SmoothLength;
+
+	for (int32 i = 0; i < NumParticles; ++i)
+	{
+		FVector2D AccumViscocity = FVector2D::ZeroVector;
+
+		for (int32 j = 0; j < NumParticles; ++j)
+		{
+			if (i == j)
+			{
+				continue;
+			}
+
+			const FVector2D& DiffPos = Positions[i] - Positions[j];
+			float DistanceSq = DiffPos.SizeSquared();
+			if (DistanceSq < SmoothLenSq)
+			{
+				const FVector2D& DiffVel = Velocities[j] - Velocities[i];
+				AccumViscocity += LaplacianViscosityCoef / Densities[j] * (SmoothLength - DiffPos.Size()) * DiffVel;
+			}
+		}
+
+		Accelerations[i] += ViscosityCoef * AccumViscocity / Densities[i];
+	}
 }
 
-void ASPHSimulatorCPU::ApplyBoundaryPenalty(float DeltaSeconds)
+void ASPHSimulatorCPU::ApplyBoundaryPenalty()
 {
 	//TODO: SPHって言っても加速度使わずにPBD使ってもいいはずなんだよな
 	for (int32 i = 0; i < NumParticles; ++i)
