@@ -53,7 +53,7 @@ private:
 	int32 NumIterations = 4;
 
 	UPROPERTY(EditAnywhere)
-	float FrameRate = 60.0f;
+	float FrameRate = 120.0f;
 
 	UPROPERTY(EditAnywhere)
 	FBox2D WallBox = FBox2D(FVector2D(0.0f, 0.0f), FVector2D(16.0f, 9.0f));
