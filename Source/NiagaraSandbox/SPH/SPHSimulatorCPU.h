@@ -50,31 +50,31 @@ private:
 	int32 NumParticles = 100;
 
 	UPROPERTY(EditAnywhere)
-	int32 NumIterations = 10;
+	int32 NumIterations = 4;
 
 	UPROPERTY(EditAnywhere)
-	FBox2D BoundaryBox = FBox2D(FVector2D(-100.0f, 0.0f), FVector2D(100.0f, 100.0f));
+	FBox2D BoundaryBox = FBox2D(FVector2D(0.0f, 16.0f), FVector2D(0.0f, 9.0f));
 
 	UPROPERTY(EditAnywhere)
-	float BoundaryStiffness = 100.0f;
+	float BoundaryStiffness = 3000.0f;
 
 	UPROPERTY(EditAnywhere)
-	float Gravity = -981.0f;
+	float Gravity = -10.0f;
 
 	UPROPERTY(EditAnywhere)
 	float Mass = 1.0f; // ‚Æ‚è‚ ‚¦‚¸‚·‚×‚Ä“¯‚¶‚É‚µ‚Ä‚¢‚é
 
 	UPROPERTY(EditAnywhere)
-	float SmoothLength = 50.0f;
+	float SmoothLength = 0.5f;
 
 	UPROPERTY(EditAnywhere)
-	float RestDensity = 1.0f;
+	float RestDensity = 4.0f;
 
 	UPROPERTY(EditAnywhere)
-	float PressureStiffness = 1.0f;
+	float PressureStiffness = 0.57f;
 
 	UPROPERTY(EditAnywhere)
-	float Viscosity = 1.0f;
+	float Viscosity = 3.0f;
 
 private:
 	void Simulate(float DeltaSeconds);
