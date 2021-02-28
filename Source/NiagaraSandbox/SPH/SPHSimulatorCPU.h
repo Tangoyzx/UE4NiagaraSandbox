@@ -47,7 +47,7 @@ private:
 	void OnNiagaraSystemFinished(UNiagaraComponent* FinishedComponent);
 
 	UPROPERTY(EditAnywhere)
-	int32 NumParticles = 100;
+	int32 NumParticles = 1000;
 
 	UPROPERTY(EditAnywhere)
 	int32 NumIterations = 4;
@@ -56,31 +56,31 @@ private:
 	float FrameRate = 60.0f;
 
 	UPROPERTY(EditAnywhere)
-	FBox2D WallBox = FBox2D(FVector2D(0.0f, 0.0f), FVector2D(1600.0f, 900.0f));
+	FBox2D WallBox = FBox2D(FVector2D(0.0f, 0.0f), FVector2D(16.0f, 9.0f));
 
 	UPROPERTY(EditAnywhere)
 	float WallStiffness = 3000.0f;
 
 	UPROPERTY(EditAnywhere)
-	float Gravity = -981.0f;
+	float Gravity = -9.81f;
 
 	UPROPERTY(EditAnywhere)
-	float Mass = 80.0f;
+	float Mass = 0.08f;
 
 	UPROPERTY(EditAnywhere)
-	float SmoothLength = 50.0f;
+	float SmoothLength = 0.5f;
 
 	UPROPERTY(EditAnywhere)
-	float RestDensity = 0.4f;
+	float RestDensity = 4.0f;
 
 	UPROPERTY(EditAnywhere)
-	float PressureStiffness = 5700.0f;
+	float PressureStiffness = 0.57f;
 
 	UPROPERTY(EditAnywhere)
-	float Viscosity = 30000.0f;
+	float Viscosity = 3.0f;
 
 	UPROPERTY(EditAnywhere)
-	float InitPosRadius = 400.0f;
+	float InitPosRadius = 4.0f;
 
 private:
 	void Simulate(float DeltaSeconds);
