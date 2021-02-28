@@ -33,9 +33,9 @@ void ASPHSimulatorCPU::BeginPlay()
 	Pressures.SetNum(NumParticles);
 	Positions3D.SetNum(NumParticles);
 
-	Positions[0] = FVector2D::ZeroVector;
-	Positions[1] = FVector2D(10.0f, 0.0f);
-	Positions[2] = FVector2D(0.0f, 10.0f);
+	Positions[0] = FVector2D(4.0f, 2.0f);
+	Positions[1] = FVector2D(8.0f, 5.0f);
+	Positions[2] = FVector2D(12.0f, 3.0f);
 
 	Velocities[0] = FVector2D::ZeroVector;
 	Velocities[1] = FVector2D::ZeroVector;
@@ -157,11 +157,19 @@ void ASPHSimulatorCPU::ApplyPressure()
 			{
 				float AvgPressure = 0.5f * (Pressures[i] + Pressures[j]);
 				float DiffLen = SmoothLength - DiffPos.Size();
-				AccumPressure += GradientPressureCoef * AvgPressure / Densities[j] * DiffLen * DiffLen / DiffPos.Size() * DiffPos;
+
+				float Distance = DiffPos.Size();
+				if (Densities[j] > SMALL_NUMBER && Distance > SMALL_NUMBER) // 0œZ‰ñ”ğ
+				{
+					AccumPressure += GradientPressureCoef * AvgPressure / Densities[j] * DiffLen * DiffLen / Distance * DiffPos;
+				}
 			}
 		}
 
-		Accelerations[i] += AccumPressure / Densities[i];
+		if (Densities[i] > SMALL_NUMBER) // 0œZ‰ñ”ğ
+		{
+			Accelerations[i] += AccumPressure / Densities[i];
+		}
 	}
 }
 
@@ -186,11 +194,17 @@ void ASPHSimulatorCPU::ApplyViscocity()
 			if (DistanceSq < SmoothLenSq)
 			{
 				const FVector2D& DiffVel = Velocities[j] - Velocities[i];
-				AccumViscocity += LaplacianViscosityCoef / Densities[j] * (SmoothLength - DiffPos.Size()) * DiffVel;
+				if (Densities[j] > SMALL_NUMBER) // 0œZ‰ñ”ğ
+				{
+					AccumViscocity += LaplacianViscosityCoef / Densities[j] * (SmoothLength - DiffPos.Size()) * DiffVel;
+				}
 			}
 		}
 
-		Accelerations[i] += Viscosity * AccumViscocity / Densities[i];
+		if (Densities[i] > SMALL_NUMBER) // 0œZ‰ñ”ğ
+		{
+			Accelerations[i] += Viscosity * AccumViscocity / Densities[i];
+		}
 	}
 }
 
