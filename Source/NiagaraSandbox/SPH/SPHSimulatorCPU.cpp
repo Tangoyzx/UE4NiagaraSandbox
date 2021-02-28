@@ -33,13 +33,16 @@ void ASPHSimulatorCPU::BeginPlay()
 	Pressures.SetNum(NumParticles);
 	Positions3D.SetNum(NumParticles);
 
-	Positions[0] = FVector2D(4.0f, 2.0f);
-	Positions[1] = FVector2D(8.0f, 5.0f);
-	Positions[2] = FVector2D(12.0f, 3.0f);
+	// InitPosRadius半径の円内にランダムに配置
+	for (int32 i = 0; i < NumParticles; ++i)
+	{
+		Positions[i] = WallBox.GetCenter() + FMath::RandPointInCircle(InitPosRadius);
+	}
 
-	Velocities[0] = FVector2D::ZeroVector;
-	Velocities[1] = FVector2D::ZeroVector;
-	Velocities[2] = FVector2D::ZeroVector;
+	for (int32 i = 0; i < NumParticles; ++i)
+	{
+		Velocities[i] = FVector2D::ZeroVector;
+	}
 
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
@@ -62,15 +65,14 @@ void ASPHSimulatorCPU::Tick(float DeltaSeconds)
 
 	if (DeltaSeconds > KINDA_SMALL_NUMBER)
 	{
-		// DeltaSecondsの値の変動に関わらず、NumIterationで均等分割する。フレームレートの変化を考慮していない方法。
-		float SubStepDeltaSeconds = DeltaSeconds / NumIterations;
+		// DeltaSecondsの値の変動に関わらず、シミュレーションに使うサブステップタイムは固定とする
+		float SubStepDeltaSeconds = 1.0f / FrameRate / NumIterations;
 
 		for (int32 i = 0; i < NumIterations; ++i)
 		{
 			Simulate(SubStepDeltaSeconds);
 		}
 	}
-
 
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
@@ -93,7 +95,7 @@ void ASPHSimulatorCPU::Simulate(float DeltaSeconds)
 	CalculatePressure();
 	ApplyPressure();
 	ApplyViscocity();
-	ApplyBoundaryPenalty();
+	ApplyWallPenalty();
 	Integrate(DeltaSeconds);
 }
 
@@ -131,7 +133,7 @@ void ASPHSimulatorCPU::CalculatePressure()
 	static float SmoothLenSq = SmoothLength * SmoothLength; 
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
-		Pressures[i] = PressureStiffness * FMath::Max(FMath::Pow(Densities[i] / RestDensity, 7), 0.0f);
+		Pressures[i] = PressureStiffness * FMath::Max(FMath::Pow(Densities[i] / RestDensity, 7) - 1.0f, 0.0f);
 	}
 }
 
@@ -153,22 +155,26 @@ void ASPHSimulatorCPU::ApplyPressure()
 
 			const FVector2D& DiffPos = Positions[j] - Positions[i];
 			float DistanceSq = DiffPos.SizeSquared();
-			if (DistanceSq < SmoothLenSq)
+			float Distance = DiffPos.Size();
+			if (DistanceSq < SmoothLenSq
+				&& Densities[j] > KINDA_SMALL_NUMBER && Distance > KINDA_SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
 			{
-				float AvgPressure = 0.5f * (Pressures[i] + Pressures[j]);
-				float DiffLen = SmoothLength - DiffPos.Size();
+				//float AvgPressure = 0.5f * (Pressures[i] + Pressures[j]);
+				float DiffPressure = Pressures[i] - Pressures[j];
+				float DiffLen = SmoothLength - Distance;
 
-				float Distance = DiffPos.Size();
-				if (Densities[j] > SMALL_NUMBER && Distance > SMALL_NUMBER) // 0除算回避
-				{
-					AccumPressure += GradientPressureCoef * AvgPressure / Densities[j] * DiffLen * DiffLen / Distance * DiffPos;
-				}
+				//AccumPressure += GradientPressureCoef * AvgPressure / FMath::Max(Densities[j], SMALL_NUMBER) * DiffLen * DiffLen / FMath::Max(Distance, KINDA_SMALL_NUMBER) * DiffPos;
+				AccumPressure += GradientPressureCoef * DiffPressure / Densities[j] * DiffLen * DiffLen / Distance * DiffPos;
 			}
 		}
 
-		if (Densities[i] > SMALL_NUMBER) // 0除算回避
+		if (Densities[i] > KINDA_SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
 		{
 			Accelerations[i] += AccumPressure / Densities[i];
+		}
+		else
+		{
+			(void)i;
 		}
 	}
 }
@@ -191,36 +197,38 @@ void ASPHSimulatorCPU::ApplyViscocity()
 
 			const FVector2D& DiffPos = Positions[j] - Positions[i];
 			float DistanceSq = DiffPos.SizeSquared();
-			if (DistanceSq < SmoothLenSq)
+			if (DistanceSq < SmoothLenSq
+				&& Densities[j] > KINDA_SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
 			{
 				const FVector2D& DiffVel = Velocities[j] - Velocities[i];
-				if (Densities[j] > SMALL_NUMBER) // 0除算回避
-				{
-					AccumViscocity += LaplacianViscosityCoef / Densities[j] * (SmoothLength - DiffPos.Size()) * DiffVel;
-				}
+				AccumViscocity += LaplacianViscosityCoef / Densities[j] * (SmoothLength - DiffPos.Size()) * DiffVel;
 			}
 		}
 
-		if (Densities[i] > SMALL_NUMBER) // 0除算回避
+		if (Densities[i] > KINDA_SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
 		{
 			Accelerations[i] += Viscosity * AccumViscocity / Densities[i];
+		}
+		else
+		{
+			(void)i;
 		}
 	}
 }
 
-void ASPHSimulatorCPU::ApplyBoundaryPenalty()
+void ASPHSimulatorCPU::ApplyWallPenalty()
 {
 	//TODO: SPHって言っても加速度使わずにPBD使ってもいいはずなんだよな
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
 		// 上境界
-		Accelerations[i] += FMath::Max(0.0f, Positions[i].Y - BoundaryBox.Max.Y) * BoundaryStiffness * FVector2D(0.0f, -1.0f);
+		Accelerations[i] += FMath::Max(0.0f, Positions[i].Y - WallBox.Max.Y) * WallStiffness * FVector2D(0.0f, -1.0f);
 		// 下境界
-		Accelerations[i] += FMath::Max(0.0f, BoundaryBox.Min.Y - Positions[i].Y) * BoundaryStiffness * FVector2D(0.0f, 1.0f);
+		Accelerations[i] += FMath::Max(0.0f, WallBox.Min.Y - Positions[i].Y) * WallStiffness * FVector2D(0.0f, 1.0f);
 		// 左境界
-		Accelerations[i] += FMath::Max(0.0f, BoundaryBox.Min.X - Positions[i].X) * BoundaryStiffness * FVector2D(1.0f, 0.0f);
+		Accelerations[i] += FMath::Max(0.0f, WallBox.Min.X - Positions[i].X) * WallStiffness * FVector2D(1.0f, 0.0f);
 		// 右境界
-		Accelerations[i] += FMath::Max(0.0f, Positions[i].X - BoundaryBox.Max.X) * BoundaryStiffness * FVector2D(-1.0f, 0.0f);
+		Accelerations[i] += FMath::Max(0.0f, Positions[i].X - WallBox.Max.X) * WallStiffness * FVector2D(-1.0f, 0.0f);
 	}
 }
 
