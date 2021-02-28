@@ -157,10 +157,10 @@ void ASPHSimulatorCPU::ApplyPressure()
 			float DistanceSq = DiffPos.SizeSquared();
 			float Distance = DiffPos.Size();
 			if (DistanceSq < SmoothLenSq
-				&& Densities[j] > KINDA_SMALL_NUMBER && Distance > KINDA_SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
+				&& Densities[j] > SMALL_NUMBER && Distance > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
 			{
 				float DiffLen = SmoothLength - Distance;
-#if 0
+#if 1
 				// 数式と違うが、UnityGraphicsProgramming1がソースコードで使っていた式
 				float AvgPressure = 0.5f * (Pressures[i] + Pressures[j]);
 				AccumPressure += GradientPressureCoef * AvgPressure / Densities[j] * DiffLen * DiffLen / Distance * DiffPos;
@@ -171,7 +171,7 @@ void ASPHSimulatorCPU::ApplyPressure()
 			}
 		}
 
-		if (Densities[i] > KINDA_SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
+		if (Densities[i] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
 		{
 			Accelerations[i] += AccumPressure / Densities[i];
 		}
@@ -201,14 +201,14 @@ void ASPHSimulatorCPU::ApplyViscocity()
 			const FVector2D& DiffPos = Positions[j] - Positions[i];
 			float DistanceSq = DiffPos.SizeSquared();
 			if (DistanceSq < SmoothLenSq
-				&& Densities[j] > KINDA_SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
+				&& Densities[j] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
 			{
 				const FVector2D& DiffVel = Velocities[j] - Velocities[i];
 				AccumViscocity += LaplacianViscosityCoef / Densities[j] * (SmoothLength - DiffPos.Size()) * DiffVel;
 			}
 		}
 
-		if (Densities[i] > KINDA_SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
+		if (Densities[i] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
 		{
 			Accelerations[i] += Viscosity * AccumViscocity / Densities[i];
 		}
