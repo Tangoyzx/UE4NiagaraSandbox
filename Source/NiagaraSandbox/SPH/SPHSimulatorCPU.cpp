@@ -59,6 +59,7 @@ void ASPHSimulatorCPU::BeginPlay()
 	LaplacianViscosityCoef = Mass * 20.0f / 3.0f / PI / FMath::Pow(SmoothLength, 5);
 
 	SmoothLenSq = SmoothLength * SmoothLength;
+	NumThreadParticles = (NumParticles + NumThreads - 1) / NumThreads;
 }
 
 void ASPHSimulatorCPU::Tick(float DeltaSeconds)
@@ -127,24 +128,27 @@ void ASPHSimulatorCPU::CalculateDensity()
 		}
 	}
 #else
-	ParallelFor(NumParticles,
-		[this](int32 i)
+	ParallelFor(NumThreads,
+		[this](int32 ThreadIndex)
 		{
-			Densities[i] = 0.0f;
-
-			for (int32 j = 0; j < NumParticles; ++j)
+			for (int32 i = NumThreadParticles * ThreadIndex; i < NumThreadParticles * (ThreadIndex + 1) && i < NumParticles; ++i)
 			{
-				if (i == j)
-				{
-					continue;
-				}
+				Densities[i] = 0.0f;
 
-				const FVector2D& DiffPos = Positions[j] - Positions[i];
-				float DistanceSq = DiffPos.SizeSquared();
-				if (DistanceSq < SmoothLenSq)
+				for (int32 j = 0; j < NumParticles; ++j)
 				{
-					float DiffLenSq = SmoothLenSq - DistanceSq;
-					Densities[i] += DensityCoef * DiffLenSq * DiffLenSq * DiffLenSq;
+					if (i == j)
+					{
+						continue;
+					}
+
+					const FVector2D& DiffPos = Positions[j] - Positions[i];
+					float DistanceSq = DiffPos.SizeSquared();
+					if (DistanceSq < SmoothLenSq)
+					{
+						float DiffLenSq = SmoothLenSq - DistanceSq;
+						Densities[i] += DensityCoef * DiffLenSq * DiffLenSq * DiffLenSq;
+					}
 				}
 			}
 		}
@@ -212,44 +216,46 @@ void ASPHSimulatorCPU::ApplyPressure()
 		}
 	}
 #else
-	ParallelFor(
-		NumParticles,
-		[this](int32 i)
+	ParallelFor(NumThreads,
+		[this](int32 ThreadIndex)
 		{
-			FVector2D AccumPressure = FVector2D::ZeroVector;
-
-			for (int32 j = 0; j < NumParticles; ++j)
+			for (int32 i = NumThreadParticles * ThreadIndex; i < NumThreadParticles * (ThreadIndex + 1) && i < NumParticles; ++i)
 			{
-				if (i == j)
-				{
-					continue;
-				}
+				FVector2D AccumPressure = FVector2D::ZeroVector;
 
-				const FVector2D& DiffPos = Positions[j] - Positions[i];
-				float DistanceSq = DiffPos.SizeSquared();
-				float Distance = DiffPos.Size();
-				if (DistanceSq < SmoothLenSq
-					&& Densities[j] > SMALL_NUMBER && Distance > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
+				for (int32 j = 0; j < NumParticles; ++j)
 				{
-					float DiffLen = SmoothLength - Distance;
+					if (i == j)
+					{
+						continue;
+					}
+
+					const FVector2D& DiffPos = Positions[j] - Positions[i];
+					float DistanceSq = DiffPos.SizeSquared();
+					float Distance = DiffPos.Size();
+					if (DistanceSq < SmoothLenSq
+						&& Densities[j] > SMALL_NUMBER && Distance > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
+					{
+						float DiffLen = SmoothLength - Distance;
 #if 1
-					// 数式と違うが、UnityGraphicsProgramming1がソースコードで使っていた式。こちらの方がなぜか安定するしフレームレートも上がる
-					float AvgPressure = 0.5f * (Pressures[i] + Pressures[j]);
-					AccumPressure += GradientPressureCoef * AvgPressure / Densities[j] * DiffLen * DiffLen / Distance * DiffPos;
+						// 数式と違うが、UnityGraphicsProgramming1がソースコードで使っていた式。こちらの方がなぜか安定するしフレームレートも上がる
+						float AvgPressure = 0.5f * (Pressures[i] + Pressures[j]);
+						AccumPressure += GradientPressureCoef * AvgPressure / Densities[j] * DiffLen * DiffLen / Distance * DiffPos;
 #else
-					float DiffPressure = Pressures[i] - Pressures[j];
-					AccumPressure += GradientPressureCoef * DiffPressure / Densities[j] * DiffLen * DiffLen / Distance * DiffPos;
+						float DiffPressure = Pressures[i] - Pressures[j];
+						AccumPressure += GradientPressureCoef * DiffPressure / Densities[j] * DiffLen * DiffLen / Distance * DiffPos;
 #endif
+					}
 				}
-			}
 
-			if (Densities[i] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
-			{
-				Accelerations[i] += AccumPressure / Densities[i];
-			}
-			else
-			{
-				(void)i;
+				if (Densities[i] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
+				{
+					Accelerations[i] += AccumPressure / Densities[i];
+				}
+				else
+				{
+					(void)i;
+				}
 			}
 		}
 	);
@@ -290,36 +296,38 @@ void ASPHSimulatorCPU::ApplyViscocity()
 		}
 	}
 #else
-	ParallelFor(
-		NumParticles,
-		[this](int32 i)
+	ParallelFor(NumThreads,
+		[this](int32 ThreadIndex)
 		{
-			FVector2D AccumViscocity = FVector2D::ZeroVector;
-
-			for (int32 j = 0; j < NumParticles; ++j)
+			for (int32 i = NumThreadParticles * ThreadIndex; i < NumThreadParticles * (ThreadIndex + 1) && i < NumParticles; ++i)
 			{
-				if (i == j)
+				FVector2D AccumViscocity = FVector2D::ZeroVector;
+
+				for (int32 j = 0; j < NumParticles; ++j)
 				{
-					continue;
+					if (i == j)
+					{
+						continue;
+					}
+
+					const FVector2D& DiffPos = Positions[j] - Positions[i];
+					float DistanceSq = DiffPos.SizeSquared();
+					if (DistanceSq < SmoothLenSq
+						&& Densities[j] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
+					{
+						const FVector2D& DiffVel = Velocities[j] - Velocities[i];
+						AccumViscocity += LaplacianViscosityCoef / Densities[j] * (SmoothLength - DiffPos.Size()) * DiffVel;
+					}
 				}
 
-				const FVector2D& DiffPos = Positions[j] - Positions[i];
-				float DistanceSq = DiffPos.SizeSquared();
-				if (DistanceSq < SmoothLenSq
-					&& Densities[j] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
+				if (Densities[i] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
 				{
-					const FVector2D& DiffVel = Velocities[j] - Velocities[i];
-					AccumViscocity += LaplacianViscosityCoef / Densities[j] * (SmoothLength - DiffPos.Size()) * DiffVel;
+					Accelerations[i] += Viscosity * AccumViscocity / Densities[i];
 				}
-			}
-
-			if (Densities[i] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
-			{
-				Accelerations[i] += Viscosity * AccumViscocity / Densities[i];
-			}
-			else
-			{
-				(void)i;
+				else
+				{
+					(void)i;
+				}
 			}
 		}
 	);

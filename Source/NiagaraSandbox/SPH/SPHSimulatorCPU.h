@@ -47,6 +47,9 @@ private:
 	void OnNiagaraSystemFinished(UNiagaraComponent* FinishedComponent);
 
 	UPROPERTY(EditAnywhere)
+	int32 NumThreads = 4;
+
+	UPROPERTY(EditAnywhere)
 	int32 NumParticles = 1000;
 
 	UPROPERTY(EditAnywhere)
@@ -104,6 +107,7 @@ private:
 	float GradientPressureCoef = 0.0f;
 	float LaplacianViscosityCoef = 0.0f;
 	float SmoothLenSq = 0.0f;
+	int32 NumThreadParticles = 0.0f;
 
 public:
 	/** Returns NiagaraComponent subobject **/
