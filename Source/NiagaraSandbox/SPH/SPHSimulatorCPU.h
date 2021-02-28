@@ -53,7 +53,7 @@ private:
 	int32 NumIterations = 4;
 
 	UPROPERTY(EditAnywhere)
-	FBox2D BoundaryBox = FBox2D(FVector2D(0.0f, 16.0f), FVector2D(0.0f, 9.0f));
+	FBox2D BoundaryBox = FBox2D(FVector2D(0.0f, 0.0f), FVector2D(16.0f, 9.0f));
 
 	UPROPERTY(EditAnywhere)
 	float BoundaryStiffness = 3000.0f;
