@@ -57,6 +57,8 @@ void ASPHSimulatorCPU::BeginPlay()
 	DensityCoef = Mass * 4.0f / PI / FMath::Pow(SmoothLength, 8);
 	GradientPressureCoef = Mass * -30.0f / PI / FMath::Pow(SmoothLength, 5);
 	LaplacianViscosityCoef = Mass * 20.0f / 3.0f / PI / FMath::Pow(SmoothLength, 5);
+
+	SmoothLenSq = SmoothLength * SmoothLength;
 }
 
 void ASPHSimulatorCPU::Tick(float DeltaSeconds)
@@ -91,6 +93,8 @@ void ASPHSimulatorCPU::Simulate(float DeltaSeconds)
 		Accelerations[i] = FVector2D::ZeroVector;
 	}
 
+	// TODO:それぞれのフェイズでParallerForしてるが、そもそも全部まとめてParallelForすることもできるはず
+	// CSと違って一つのタスクを小さくするのがいいわけでもないので
 	CalculateDensity();
 	CalculatePressure();
 	ApplyPressure();
@@ -101,15 +105,11 @@ void ASPHSimulatorCPU::Simulate(float DeltaSeconds)
 
 void ASPHSimulatorCPU::CalculateDensity()
 {
-	static float SmoothLenSq = SmoothLength * SmoothLength;
-
+#if 0
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
 		Densities[i] = 0.0f;
-	}
 
-	for (int32 i = 0; i < NumParticles; ++i)
-	{
 		for (int32 j = 0; j < NumParticles; ++j)
 		{
 			if (i == j)
@@ -126,22 +126,53 @@ void ASPHSimulatorCPU::CalculateDensity()
 			}
 		}
 	}
+#else
+	ParallelFor(NumParticles,
+		[this](int32 i)
+		{
+			Densities[i] = 0.0f;
+
+			for (int32 j = 0; j < NumParticles; ++j)
+			{
+				if (i == j)
+				{
+					continue;
+				}
+
+				const FVector2D& DiffPos = Positions[j] - Positions[i];
+				float DistanceSq = DiffPos.SizeSquared();
+				if (DistanceSq < SmoothLenSq)
+				{
+					float DiffLenSq = SmoothLenSq - DistanceSq;
+					Densities[i] += DensityCoef * DiffLenSq * DiffLenSq * DiffLenSq;
+				}
+			}
+		}
+	);
+#endif
 }
 
 void ASPHSimulatorCPU::CalculatePressure()
 {
-	static float SmoothLenSq = SmoothLength * SmoothLength; 
+#if 1
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
 		Pressures[i] = PressureStiffness * FMath::Max(FMath::Pow(Densities[i] / RestDensity, 7) - 1.0f, 0.0f);
 	}
+#else
+	ParallelFor(
+		NumParticles,
+		[this](int32 i)
+		{
+			Pressures[i] = PressureStiffness * FMath::Max(FMath::Pow(Densities[i] / RestDensity, 7) - 1.0f, 0.0f);
+		}
+	);
+#endif
 }
 
 void ASPHSimulatorCPU::ApplyPressure()
 {
-	// TODO:メンバ変数にした方がいいかも。他の関数でも計算している
-	static float SmoothLenSq = SmoothLength * SmoothLength;
-
+#if 0
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
 		FVector2D AccumPressure = FVector2D::ZeroVector;
@@ -161,7 +192,7 @@ void ASPHSimulatorCPU::ApplyPressure()
 			{
 				float DiffLen = SmoothLength - Distance;
 #if 1
-				// 数式と違うが、UnityGraphicsProgramming1がソースコードで使っていた式
+				// 数式と違うが、UnityGraphicsProgramming1がソースコードで使っていた式。こちらの方がなぜか安定するしフレームレートも上がる
 				float AvgPressure = 0.5f * (Pressures[i] + Pressures[j]);
 				AccumPressure += GradientPressureCoef * AvgPressure / Densities[j] * DiffLen * DiffLen / Distance * DiffPos;
 #else
@@ -180,13 +211,54 @@ void ASPHSimulatorCPU::ApplyPressure()
 			(void)i;
 		}
 	}
+#else
+	ParallelFor(
+		NumParticles,
+		[this](int32 i)
+		{
+			FVector2D AccumPressure = FVector2D::ZeroVector;
+
+			for (int32 j = 0; j < NumParticles; ++j)
+			{
+				if (i == j)
+				{
+					continue;
+				}
+
+				const FVector2D& DiffPos = Positions[j] - Positions[i];
+				float DistanceSq = DiffPos.SizeSquared();
+				float Distance = DiffPos.Size();
+				if (DistanceSq < SmoothLenSq
+					&& Densities[j] > SMALL_NUMBER && Distance > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
+				{
+					float DiffLen = SmoothLength - Distance;
+#if 1
+					// 数式と違うが、UnityGraphicsProgramming1がソースコードで使っていた式。こちらの方がなぜか安定するしフレームレートも上がる
+					float AvgPressure = 0.5f * (Pressures[i] + Pressures[j]);
+					AccumPressure += GradientPressureCoef * AvgPressure / Densities[j] * DiffLen * DiffLen / Distance * DiffPos;
+#else
+					float DiffPressure = Pressures[i] - Pressures[j];
+					AccumPressure += GradientPressureCoef * DiffPressure / Densities[j] * DiffLen * DiffLen / Distance * DiffPos;
+#endif
+				}
+			}
+
+			if (Densities[i] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
+			{
+				Accelerations[i] += AccumPressure / Densities[i];
+			}
+			else
+			{
+				(void)i;
+			}
+		}
+	);
+#endif
 }
 
 void ASPHSimulatorCPU::ApplyViscocity()
 {
-	// TODO:メンバ変数にした方がいいかも。他の関数でも計算している
-	static float SmoothLenSq = SmoothLength * SmoothLength;
-
+#if 0
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
 		FVector2D AccumViscocity = FVector2D::ZeroVector;
@@ -217,11 +289,47 @@ void ASPHSimulatorCPU::ApplyViscocity()
 			(void)i;
 		}
 	}
+#else
+	ParallelFor(
+		NumParticles,
+		[this](int32 i)
+		{
+			FVector2D AccumViscocity = FVector2D::ZeroVector;
+
+			for (int32 j = 0; j < NumParticles; ++j)
+			{
+				if (i == j)
+				{
+					continue;
+				}
+
+				const FVector2D& DiffPos = Positions[j] - Positions[i];
+				float DistanceSq = DiffPos.SizeSquared();
+				if (DistanceSq < SmoothLenSq
+					&& Densities[j] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
+				{
+					const FVector2D& DiffVel = Velocities[j] - Velocities[i];
+					AccumViscocity += LaplacianViscosityCoef / Densities[j] * (SmoothLength - DiffPos.Size()) * DiffVel;
+				}
+			}
+
+			if (Densities[i] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
+			{
+				Accelerations[i] += Viscosity * AccumViscocity / Densities[i];
+			}
+			else
+			{
+				(void)i;
+			}
+		}
+	);
+#endif
 }
 
 void ASPHSimulatorCPU::ApplyWallPenalty()
 {
 	//TODO: SPHって言っても加速度使わずにPBD使ってもいいはずなんだよな
+#if 1
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
 		// 上境界
@@ -233,25 +341,48 @@ void ASPHSimulatorCPU::ApplyWallPenalty()
 		// 右境界
 		Accelerations[i] += FMath::Max(0.0f, Positions[i].X - WallBox.Max.X) * WallStiffness * FVector2D(-1.0f, 0.0f);
 	}
+#else
+	ParallelFor(
+		NumParticles,
+		[this](int32 i)
+		{
+			// 上境界
+			Accelerations[i] += FMath::Max(0.0f, Positions[i].Y - WallBox.Max.Y) * WallStiffness * FVector2D(0.0f, -1.0f);
+			// 下境界
+			Accelerations[i] += FMath::Max(0.0f, WallBox.Min.Y - Positions[i].Y) * WallStiffness * FVector2D(0.0f, 1.0f);
+			// 左境界
+			Accelerations[i] += FMath::Max(0.0f, WallBox.Min.X - Positions[i].X) * WallStiffness * FVector2D(1.0f, 0.0f);
+			// 右境界
+			Accelerations[i] += FMath::Max(0.0f, Positions[i].X - WallBox.Max.X) * WallStiffness * FVector2D(-1.0f, 0.0f);
+		}
+	);
+#endif
 }
 
 void ASPHSimulatorCPU::Integrate(float DeltaSeconds)
 {
+#if 1
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
 		Accelerations[i] += FVector2D(0.0f, Gravity);
-	}
-
-	// 前進オイラー法
-	for (int32 i = 0; i < NumParticles; ++i)
-	{
+		Accelerations[i] += FVector2D(0.0f, Gravity);
+		// 前進オイラー法
 		Velocities[i] += Accelerations[i] * DeltaSeconds;
-	}
-
-	for (int32 i = 0; i < NumParticles; ++i)
-	{
 		Positions[i] += Velocities[i] * DeltaSeconds;
 	}
+#else
+	ParallelFor(
+		NumParticles,
+		[this, DeltaSeconds](int32 i)
+		{
+			Accelerations[i] += FVector2D(0.0f, Gravity);
+			Accelerations[i] += FVector2D(0.0f, Gravity);
+			// 前進オイラー法
+			Velocities[i] += Accelerations[i] * DeltaSeconds;
+			Positions[i] += Velocities[i] * DeltaSeconds;
+		}
+	);
+#endif
 }
 
 ASPHSimulatorCPU::ASPHSimulatorCPU()
