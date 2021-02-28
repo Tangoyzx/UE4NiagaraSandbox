@@ -159,12 +159,15 @@ void ASPHSimulatorCPU::ApplyPressure()
 			if (DistanceSq < SmoothLenSq
 				&& Densities[j] > KINDA_SMALL_NUMBER && Distance > KINDA_SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
 			{
-				//float AvgPressure = 0.5f * (Pressures[i] + Pressures[j]);
-				float DiffPressure = Pressures[i] - Pressures[j];
 				float DiffLen = SmoothLength - Distance;
-
-				//AccumPressure += GradientPressureCoef * AvgPressure / FMath::Max(Densities[j], SMALL_NUMBER) * DiffLen * DiffLen / FMath::Max(Distance, KINDA_SMALL_NUMBER) * DiffPos;
+#if 0
+				// 数式と違うが、UnityGraphicsProgramming1がソースコードで使っていた式
+				float AvgPressure = 0.5f * (Pressures[i] + Pressures[j]);
+				AccumPressure += GradientPressureCoef * AvgPressure / Densities[j] * DiffLen * DiffLen / Distance * DiffPos;
+#else
+				float DiffPressure = Pressures[i] - Pressures[j];
 				AccumPressure += GradientPressureCoef * DiffPressure / Densities[j] * DiffLen * DiffLen / Distance * DiffPos;
+#endif
 			}
 		}
 
