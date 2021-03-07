@@ -99,7 +99,7 @@ void ASPHSimulatorCPU::Simulate(float DeltaSeconds)
 	CalculateDensity();
 	CalculatePressure();
 	ApplyPressure();
-	ApplyViscocity();
+	ApplyViscosity();
 	ApplyWallPenalty();
 	Integrate(DeltaSeconds);
 }
@@ -262,12 +262,12 @@ void ASPHSimulatorCPU::ApplyPressure()
 #endif
 }
 
-void ASPHSimulatorCPU::ApplyViscocity()
+void ASPHSimulatorCPU::ApplyViscosity()
 {
 #if 0
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
-		FVector2D AccumViscocity = FVector2D::ZeroVector;
+		FVector2D AccumViscosity = FVector2D::ZeroVector;
 
 		for (int32 j = 0; j < NumParticles; ++j)
 		{
@@ -282,13 +282,13 @@ void ASPHSimulatorCPU::ApplyViscocity()
 				&& Densities[j] > SMALL_NUMBER) // 0œZ‚ÆA¬‚³‚È’l‚ÌœZ‚Å‚·‚²‚­‘å‚«‚È€‚É‚È‚é‚Ì‚ğ‰ñ”ğ
 			{
 				const FVector2D& DiffVel = Velocities[j] - Velocities[i];
-				AccumViscocity += LaplacianViscosityCoef / Densities[j] * (SmoothLength - DiffPos.Size()) * DiffVel;
+				AccumViscosity += LaplacianViscosityCoef / Densities[j] * (SmoothLength - DiffPos.Size()) * DiffVel;
 			}
 		}
 
 		if (Densities[i] > SMALL_NUMBER) // 0œZ‚ÆA¬‚³‚È’l‚ÌœZ‚Å‚·‚²‚­‘å‚«‚È€‚É‚È‚é‚Ì‚ğ‰ñ”ğ
 		{
-			Accelerations[i] += Viscosity * AccumViscocity / Densities[i];
+			Accelerations[i] += Viscosity * AccumViscosity / Densities[i];
 		}
 		else
 		{
@@ -301,7 +301,7 @@ void ASPHSimulatorCPU::ApplyViscocity()
 		{
 			for (int32 i = NumThreadParticles * ThreadIndex; i < NumThreadParticles * (ThreadIndex + 1) && i < NumParticles; ++i)
 			{
-				FVector2D AccumViscocity = FVector2D::ZeroVector;
+				FVector2D AccumViscosity = FVector2D::ZeroVector;
 
 				for (int32 j = 0; j < NumParticles; ++j)
 				{
@@ -316,13 +316,13 @@ void ASPHSimulatorCPU::ApplyViscocity()
 						&& Densities[j] > SMALL_NUMBER) // 0œZ‚ÆA¬‚³‚È’l‚ÌœZ‚Å‚·‚²‚­‘å‚«‚È€‚É‚È‚é‚Ì‚ğ‰ñ”ğ
 					{
 						const FVector2D& DiffVel = Velocities[j] - Velocities[i];
-						AccumViscocity += LaplacianViscosityCoef / Densities[j] * (SmoothLength - DiffPos.Size()) * DiffVel;
+						AccumViscosity += LaplacianViscosityCoef / Densities[j] * (SmoothLength - DiffPos.Size()) * DiffVel;
 					}
 				}
 
 				if (Densities[i] > SMALL_NUMBER) // 0œZ‚ÆA¬‚³‚È’l‚ÌœZ‚Å‚·‚²‚­‘å‚«‚È€‚É‚È‚é‚Ì‚ğ‰ñ”ğ
 				{
-					Accelerations[i] += Viscosity * AccumViscocity / Densities[i];
+					Accelerations[i] += Viscosity * AccumViscosity / Densities[i];
 				}
 				else
 				{

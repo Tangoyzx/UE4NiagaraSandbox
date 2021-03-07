@@ -90,7 +90,7 @@ private:
 	void CalculateDensity();
 	void CalculatePressure();
 	void ApplyPressure();
-	void ApplyViscocity();
+	void ApplyViscosity();
 	void ApplyWallPenalty();
 	void Integrate(float DeltaSeconds);
 
