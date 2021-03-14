@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "GameFramework/Actor.h"
+#include "../Common/NeighborGrid3DCPU.h"
 #include "SPHSimulatorCPU.generated.h"
 
 UCLASS()
@@ -85,6 +86,24 @@ private:
 	UPROPERTY(EditAnywhere)
 	float InitPosRadius = 4.0f;
 
+	UPROPERTY(EditAnywhere)
+	int32 NumCellsX = 1;
+
+	UPROPERTY(EditAnywhere)
+	int32 NumCellsY = 1;
+
+	UPROPERTY(EditAnywhere)
+	int32 NumCellsZ = 1;
+
+	UPROPERTY(EditAnywhere)
+	int32 MaxNeighborsPerCell = 8;
+
+	UPROPERTY(EditAnywhere)
+	float CellSize = 10.0f;
+
+	UPROPERTY(EditAnywhere)
+	FVector WorldBBoxSize = FVector(10.0f, 10.0f, 10.0f);
+
 private:
 	void Simulate(float DeltaSeconds);
 	void CalculateDensity();
@@ -108,6 +127,7 @@ private:
 	float LaplacianViscosityCoef = 0.0f;
 	float SmoothLenSq = 0.0f;
 	int32 NumThreadParticles = 0.0f;
+	FNeighborGrid3DCPU NeighborGrid3D;
 
 public:
 	/** Returns NiagaraComponent subobject **/
