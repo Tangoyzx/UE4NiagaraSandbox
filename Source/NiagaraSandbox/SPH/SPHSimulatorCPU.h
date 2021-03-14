@@ -87,13 +87,7 @@ private:
 	float InitPosRadius = 4.0f;
 
 	UPROPERTY(EditAnywhere)
-	int32 NumCellsX = 1;
-
-	UPROPERTY(EditAnywhere)
-	int32 NumCellsY = 1;
-
-	UPROPERTY(EditAnywhere)
-	int32 NumCellsZ = 1;
+	FIntVector NumCells = FIntVector(1, 1, 1);
 
 	UPROPERTY(EditAnywhere)
 	int32 MaxNeighborsPerCell = 8;

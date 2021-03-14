@@ -49,7 +49,7 @@ void ASPHSimulatorCPU::BeginPlay()
 		Positions3D[i] = FVector(0.0f, Positions[i].X, Positions[i].Y);
 	}
 
-	NeighborGrid3D.Initialize(NumCellsX, NumCellsY, NumCellsZ, MaxNeighborsPerCell, CellSize, WorldBBoxSize);
+	NeighborGrid3D.Initialize(NumCells, MaxNeighborsPerCell, CellSize, WorldBBoxSize);
 
 	// Tick()で設定しても、レベルにNiagaraSystemが最初から配置されていると、初回のスポーンでは配列は初期値を使ってしまい
 	//間に合わないのでBeginPlay()でも設定する
