@@ -49,7 +49,13 @@ void ASPHSimulatorCPU::BeginPlay()
 		Positions3D[i] = FVector(0.0f, Positions[i].X, Positions[i].Y);
 	}
 
-	NeighborGrid3D.Initialize(NumCells, MaxNeighborsPerCell, CellSize, WorldBBoxSize);
+	if (bUseNeighborGrid3D)
+	{
+		//TODO: [0, WorldBBoxSize]を[0,1]に写像して扱う。RotationとTranslationはなし
+		SimulationToUnitTransform = FTransform();
+		SimulationToUnitTransform.SetScale3D(FVector(1.0f) / WorldBBoxSize);
+		NeighborGrid3D.Initialize(NumCells, MaxNeighborsPerCell, CellSize, WorldBBoxSize);
+	}
 
 	// Tick()で設定しても、レベルにNiagaraSystemが最初から配置されていると、初回のスポーンでは配列は初期値を使ってしまい
 	//間に合わないのでBeginPlay()でも設定する
@@ -67,8 +73,6 @@ void ASPHSimulatorCPU::BeginPlay()
 void ASPHSimulatorCPU::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-
-	NeighborGrid3D.Reset();
 
 	if (DeltaSeconds > KINDA_SMALL_NUMBER)
 	{
@@ -92,6 +96,37 @@ void ASPHSimulatorCPU::Tick(float DeltaSeconds)
 
 void ASPHSimulatorCPU::Simulate(float DeltaSeconds)
 {
+	if (bUseNeighborGrid3D)
+	{
+		NeighborGrid3D.Reset();
+
+		for (int32 i = 0; i < NumParticles; ++i)
+		{
+			const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(Positions3D[i], SimulationToUnitTransform);
+			const FIntVector& CellIndex = NeighborGrid3D.UnitToIndex(UnitPos);
+			if (
+				CellIndex.X >= 0 && CellIndex.X < NumCells.X
+				&& CellIndex.Y >= 0 && CellIndex.Y < NumCells.Y
+				&& CellIndex.Z >= 0 && CellIndex.Z < NumCells.Z
+			)
+			{
+				int32 LinearIndex = NeighborGrid3D.IndexToLinear(CellIndex);
+				int32 PreviousNeighborCount = 0;
+				NeighborGrid3D.SetParticleNeighborCount(LinearIndex, 1, PreviousNeighborCount);
+
+				if (PreviousNeighborCount < MaxNeighborsPerCell)
+				{
+					int32 NeighborGridLinearIndex = NeighborGrid3D.NeighborGridIndexToLinear(CellIndex, PreviousNeighborCount);
+					NeighborGrid3D.SetParticleNeighbor(NeighborGridLinearIndex, i);
+				}
+				else
+				{
+					UE_LOG(LogTemp, Warning, TEXT("Over registation to NeighborGrid3DCPU. CellIndex=(%d, %d, %d). PreviousNeighborCount=%d."), CellIndex.X, CellIndex.Y, CellIndex.Z, PreviousNeighborCount);
+				}
+			}
+		}
+	}
+
 	// TODO:初期化はあとで加速度を計算するようになったら不要になるのであとで消す
 	for (int32 i = 0; i < NumParticles; ++i)
 	{

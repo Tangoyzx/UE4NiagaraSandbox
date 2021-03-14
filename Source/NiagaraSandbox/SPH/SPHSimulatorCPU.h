@@ -51,6 +51,9 @@ private:
 	int32 NumThreads = 4;
 
 	UPROPERTY(EditAnywhere)
+	bool bUseNeighborGrid3D = true;
+
+	UPROPERTY(EditAnywhere)
 	int32 NumParticles = 1000;
 
 	UPROPERTY(EditAnywhere)
@@ -122,6 +125,7 @@ private:
 	float SmoothLenSq = 0.0f;
 	int32 NumThreadParticles = 0.0f;
 	FNeighborGrid3DCPU NeighborGrid3D;
+	FTransform SimulationToUnitTransform;
 
 public:
 	/** Returns NiagaraComponent subobject **/
