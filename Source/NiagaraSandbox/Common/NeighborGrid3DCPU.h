@@ -28,8 +28,11 @@ public:
 	int32 IndexToLinear(const FIntVector& Index) const;
 	// cell index to neighbor grid linear index
 	int32 NeighborGridIndexToLinear(const FIntVector& Index, int32 NeighborIndex);
+	int32 GetParticleNeighborCount(int32 LinearIndex) const;
 	// PreviousNeighborCount just become neigbor index (i.e. particle index) of the cell.
+	// As if incrementation cause over MaxNeighborsPerCell, _ParticleNeighborCountArray[InLinearIndex] is incremented.
 	void SetParticleNeighborCount(int32 InLinearIndex, int32 InIncrement, int32& PreviousNeighborCount);
-
+	int32 GetParticleNeighbor(int32 NeighborGridLinearIndex) const;
+	void SetParticleNeighbor(int32 NeighborGridLinearIndex, int32 ParticleIndex);
 };
 

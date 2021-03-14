@@ -71,9 +71,23 @@ int32 FNeighborGrid3DCPU::NeighborGridIndexToLinear(const FIntVector& Index, int
 	return NeighborIndex + IndexToLinear(Index) * _MaxNeighborsPerCell;
 }
 
+int32 FNeighborGrid3DCPU::GetParticleNeighborCount(int32 LinearIndex) const
+{
+	return _ParticleNeighborCountArray[LinearIndex];
+}
+
 void FNeighborGrid3DCPU::SetParticleNeighborCount(int32 InLinearIndex, int32 InIncrement, int32& PreviousNeighborCount)
 {
 	PreviousNeighborCount = _ParticleNeighborCountArray[InLinearIndex];
 	_ParticleNeighborCountArray[InLinearIndex] += InIncrement;
 }
 
+int32 FNeighborGrid3DCPU::GetParticleNeighbor(int32 NeighborGridLinearIndex) const
+{
+	return _ParticleIndicesArray[NeighborGridLinearIndex];
+}
+
+void FNeighborGrid3DCPU::SetParticleNeighbor(int32 NeighborGridLinearIndex, int32 ParticleIndex)
+{
+	_ParticleIndicesArray[NeighborGridLinearIndex] = ParticleIndex;
+}
