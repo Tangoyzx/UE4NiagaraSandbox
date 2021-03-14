@@ -51,10 +51,9 @@ void ASPHSimulatorCPU::BeginPlay()
 
 	if (bUseNeighborGrid3D)
 	{
-		//TODO: [0, WorldBBoxSize]を[0,1]に写像して扱う。RotationとTranslationはなし
-		SimulationToUnitTransform = FTransform();
-		SimulationToUnitTransform.SetScale3D(FVector(1.0f) / WorldBBoxSize);
-		NeighborGrid3D.Initialize(NumCells, MaxNeighborsPerCell, CellSize, WorldBBoxSize);
+		//TODO: [-WorldBBoxSize / 2, WorldBBoxSize / 2]を[0,1]に写像して扱う。RotationとTranslationはなし
+		SimulationToUnitTransform = FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / WorldBBoxSize);
+		NeighborGrid3D.Initialize(NumCells, MaxNeighborsPerCell);
 	}
 
 	// Tick()で設定しても、レベルにNiagaraSystemが最初から配置されていると、初回のスポーンでは配列は初期値を使ってしまい

@@ -63,7 +63,7 @@ private:
 	float FrameRate = 60.0f;
 
 	UPROPERTY(EditAnywhere)
-	FBox2D WallBox = FBox2D(FVector2D(0.0f, 0.0f), FVector2D(16.0f, 9.0f));
+	FBox2D WallBox = FBox2D(FVector2D(-8.0f, -4.5f), FVector2D(8.0f, 4.5f));
 
 	UPROPERTY(EditAnywhere)
 	float WallStiffness = 3000.0f;
@@ -94,9 +94,6 @@ private:
 
 	UPROPERTY(EditAnywhere)
 	int32 MaxNeighborsPerCell = 8;
-
-	UPROPERTY(EditAnywhere)
-	float CellSize = 10.0f;
 
 	UPROPERTY(EditAnywhere)
 	FVector WorldBBoxSize = FVector(10.0f, 10.0f, 10.0f);

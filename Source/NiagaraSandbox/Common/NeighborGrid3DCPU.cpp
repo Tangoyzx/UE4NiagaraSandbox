@@ -1,24 +1,17 @@
 #include "NeighborGrid3DCPU.h"
 
-void FNeighborGrid3DCPU::Initialize(const FIntVector& NumCells, int32 MaxNeighborsPerCell, float CellSize, const FVector& WorldBBoxSize)
+void FNeighborGrid3DCPU::Initialize(const FIntVector& NumCells, int32 MaxNeighborsPerCell)
 {
 	check(NumCells.X > 0);
 	check(NumCells.Y > 0);
 	check(NumCells.Z > 0);
 	check(MaxNeighborsPerCell > 0);
-	check(CellSize > KINDA_SMALL_NUMBER);
-	check(WorldBBoxSize.X > KINDA_SMALL_NUMBER);
-	check(WorldBBoxSize.Y > KINDA_SMALL_NUMBER);
-	check(WorldBBoxSize.Z > KINDA_SMALL_NUMBER);
 
 	_NumCells = NumCells;
 	_MaxNeighborsPerCell = MaxNeighborsPerCell;
 
 	_ParticleIndicesArray.SetNum(NumCells.X * NumCells.Y * NumCells.Z * MaxNeighborsPerCell);
 	_ParticleNeighborCountArray.SetNum(NumCells.X * NumCells.Y * NumCells.Z);
-
-	_CellSize = CellSize;
-	_WorldBBoxSize = WorldBBoxSize;
 }
 
 void FNeighborGrid3DCPU::Reset()
