@@ -99,9 +99,9 @@ void ASPHSimulatorCPU::Simulate(float DeltaSeconds)
 	{
 		NeighborGrid3D.Reset();
 
-		for (int32 i = 0; i < NumParticles; ++i)
+		for (int32 ParticleIdx = 0; ParticleIdx < NumParticles; ++ParticleIdx)
 		{
-			const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(Positions3D[i], SimulationToUnitTransform);
+			const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(Positions3D[ParticleIdx], SimulationToUnitTransform);
 			const FIntVector& CellIndex = NeighborGrid3D.UnitToIndex(UnitPos);
 			if (NeighborGrid3D.IsValidCellIndex(CellIndex))
 			{
@@ -112,7 +112,7 @@ void ASPHSimulatorCPU::Simulate(float DeltaSeconds)
 				if (PreviousNeighborCount < MaxNeighborsPerCell)
 				{
 					int32 NeighborGridLinearIndex = NeighborGrid3D.NeighborGridIndexToLinear(CellIndex, PreviousNeighborCount);
-					NeighborGrid3D.SetParticleNeighbor(NeighborGridLinearIndex, i);
+					NeighborGrid3D.SetParticleNeighbor(NeighborGridLinearIndex, ParticleIdx);
 				}
 				else
 				{
@@ -123,9 +123,9 @@ void ASPHSimulatorCPU::Simulate(float DeltaSeconds)
 	}
 
 	// TODO:初期化はあとで加速度を計算するようになったら不要になるのであとで消す
-	for (int32 i = 0; i < NumParticles; ++i)
+	for (int32 ParticleIdx = 0; ParticleIdx < NumParticles; ++ParticleIdx)
 	{
-		Accelerations[i] = FVector2D::ZeroVector;
+		Accelerations[ParticleIdx] = FVector2D::ZeroVector;
 	}
 
 	// TODO:それぞれのフェイズでParallerForしてるが、そもそも全部まとめてParallelForすることもできるはず
