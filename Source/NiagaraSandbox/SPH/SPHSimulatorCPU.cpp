@@ -103,11 +103,7 @@ void ASPHSimulatorCPU::Simulate(float DeltaSeconds)
 		{
 			const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(Positions3D[i], SimulationToUnitTransform);
 			const FIntVector& CellIndex = NeighborGrid3D.UnitToIndex(UnitPos);
-			if (
-				CellIndex.X >= 0 && CellIndex.X < NumCells.X
-				&& CellIndex.Y >= 0 && CellIndex.Y < NumCells.Y
-				&& CellIndex.Z >= 0 && CellIndex.Z < NumCells.Z
-			)
+			if (NeighborGrid3D.IsValidCellIndex(CellIndex))
 			{
 				int32 LinearIndex = NeighborGrid3D.IndexToLinear(CellIndex);
 				int32 PreviousNeighborCount = 0;
@@ -154,11 +150,7 @@ void ASPHSimulatorCPU::CalculateDensity()
 		const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(Positions3D[i], SimulationToUnitTransform);
 		const FIntVector& CellIndex = NeighborGrid3D.UnitToIndex(UnitPos);
 		// TODO:判定条件も共通関数化できるな
-		if (
-			CellIndex.X < 0 || CellIndex.X >= NumCells.X
-			|| CellIndex.Y < 0 || CellIndex.Y >= NumCells.Y
-			|| CellIndex.Z < 0 || CellIndex.Z >= NumCells.Z
-		)
+		if (!NeighborGrid3D.IsValidCellIndex(CellIndex))
 		{
 			// TODO:はみ出るのはどういうケースだ？
 			continue;
@@ -180,11 +172,7 @@ void ASPHSimulatorCPU::CalculateDensity()
 		{
 			const FIntVector& AdjacentCellIndex = CellIndex + AdjacentIndexOffsets[j];
 			// TODO:判定条件も共通関数化できるな
-			if (
-				AdjacentCellIndex.X < 0 || AdjacentCellIndex.X >= NumCells.X
-				|| AdjacentCellIndex.Y < 0 || AdjacentCellIndex.Y >= NumCells.Y
-				|| AdjacentCellIndex.Z < 0 || AdjacentCellIndex.Z >= NumCells.Z
-			)
+			if (!NeighborGrid3D.IsValidCellIndex(AdjacentCellIndex))
 			{
 				continue;
 			}

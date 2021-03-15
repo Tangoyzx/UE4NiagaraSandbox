@@ -38,6 +38,13 @@ FIntVector FNeighborGrid3DCPU::GetNumCells() const
 	return _NumCells;
 }
 
+bool FNeighborGrid3DCPU::IsValidCellIndex(const FIntVector& CellIndex) const
+{
+	return CellIndex.X >= 0 && CellIndex.X < _NumCells.X
+		&& CellIndex.Y >= 0 && CellIndex.Y < _NumCells.Y
+		&& CellIndex.Z >= 0 && CellIndex.Z < _NumCells.Z;
+}
+
 int32 FNeighborGrid3DCPU::MaxNeighborsPerCell() const
 {
 	return _MaxNeighborsPerCell;

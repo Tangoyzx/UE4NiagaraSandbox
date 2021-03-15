@@ -17,6 +17,10 @@ private:
 public:
 	void Initialize(const FIntVector& NumCells, int32 MaxNeighborsPerCell);
 	void Reset();
+
+	// all methods below are usable after Initialize().
+
+	bool IsValidCellIndex(const FIntVector& CellIndex) const;
 	FIntVector GetNumCells() const;
 	// get MaxNeighborsPerCell
 	int32 MaxNeighborsPerCell() const;
