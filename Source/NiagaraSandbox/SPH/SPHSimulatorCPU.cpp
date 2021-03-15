@@ -144,11 +144,68 @@ void ASPHSimulatorCPU::Simulate(float DeltaSeconds)
 
 void ASPHSimulatorCPU::CalculateDensity()
 {
-#if 0
+#if 1
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
 		Densities[i] = 0.0f;
 
+		#if 1
+		// TODO:各フェイズで毎回計算するのは冗長
+		const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(Positions3D[i], SimulationToUnitTransform);
+		const FIntVector& CellIndex = NeighborGrid3D.UnitToIndex(UnitPos);
+		// TODO:判定条件も共通関数化できるな
+		if (
+			CellIndex.X < 0 || CellIndex.X >= NumCells.X
+			|| CellIndex.Y < 0 || CellIndex.Y >= NumCells.Y
+			|| CellIndex.Z < 0 || CellIndex.Z >= NumCells.Z
+		)
+		{
+			// TODO:はみ出るのはどういうケースだ？
+			continue;
+		}
+
+		FIntVector AdjacentIndexOffsets[9] = {
+			FIntVector(0, -1, -1),
+			FIntVector(0, 0, -1),
+			FIntVector(0, +1, -1),
+			FIntVector(0, -1, 0),
+			FIntVector(0, 0, 0),
+			FIntVector(0, +1, 0),
+			FIntVector(0, -1, +1),
+			FIntVector(0, 0, +1),
+			FIntVector(0, +1, +1)
+		};
+
+		for (int32 j = 0; j < 9; ++j)
+		{
+			const FIntVector& AdjacentCellIndex = CellIndex + AdjacentIndexOffsets[j];
+			// TODO:判定条件も共通関数化できるな
+			if (
+				AdjacentCellIndex.X < 0 || AdjacentCellIndex.X >= NumCells.X
+				|| AdjacentCellIndex.Y < 0 || AdjacentCellIndex.Y >= NumCells.Y
+				|| AdjacentCellIndex.Z < 0 || AdjacentCellIndex.Z >= NumCells.Z
+			)
+			{
+				continue;
+			}
+
+			for (int32 k = 0; k < MaxNeighborsPerCell; ++k)
+			{
+				int32 NeighborLinearIndex = NeighborGrid3D.NeighborGridIndexToLinear(AdjacentCellIndex, k);
+				int32 ParticleIndex = NeighborGrid3D.GetParticleNeighbor(NeighborLinearIndex);
+				if (i != ParticleIndex && ParticleIndex != INDEX_NONE)
+				{
+					const FVector2D& DiffPos = Positions[ParticleIndex] - Positions[i];
+					float DistanceSq = DiffPos.SizeSquared();
+					if (DistanceSq < SmoothLenSq)
+					{
+						float DiffLenSq = SmoothLenSq - DistanceSq;
+						Densities[i] += DensityCoef * DiffLenSq * DiffLenSq * DiffLenSq;
+					}
+				}
+			}
+		}
+		#else
 		for (int32 j = 0; j < NumParticles; ++j)
 		{
 			if (i == j)
@@ -164,6 +221,7 @@ void ASPHSimulatorCPU::CalculateDensity()
 				Densities[i] += DensityCoef * DiffLenSq * DiffLenSq * DiffLenSq;
 			}
 		}
+		#endif
 	}
 #else
 	ParallelFor(NumThreads,
@@ -214,7 +272,7 @@ void ASPHSimulatorCPU::CalculatePressure()
 
 void ASPHSimulatorCPU::ApplyPressure()
 {
-#if 0
+#if 1
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
 		FVector2D AccumPressure = FVector2D::ZeroVector;
@@ -302,7 +360,7 @@ void ASPHSimulatorCPU::ApplyPressure()
 
 void ASPHSimulatorCPU::ApplyViscosity()
 {
-#if 0
+#if 1
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
 		FVector2D AccumViscosity = FVector2D::ZeroVector;
