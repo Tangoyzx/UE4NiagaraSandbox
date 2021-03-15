@@ -100,12 +100,12 @@ private:
 
 private:
 	void Simulate(float DeltaSeconds);
-	void CalculateDensity();
-	void CalculatePressure();
-	void ApplyPressure();
-	void ApplyViscosity();
-	void ApplyWallPenalty();
-	void Integrate(float DeltaSeconds);
+	void CalculateDensity(int32 ParticleIdx);
+	void CalculatePressure(int32 ParticleIdx);
+	void ApplyPressure(int32 ParticleIdx);
+	void ApplyViscosity(int32 ParticleIdx);
+	void ApplyWallPenalty(int32 ParticleIdx);
+	void Integrate(int32 ParticleIdx, float DeltaSeconds);
 
 private:
 	TArray<FVector2D> Positions;

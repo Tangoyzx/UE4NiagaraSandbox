@@ -95,9 +95,9 @@ void ASPHSimulatorCPU::Tick(float DeltaSeconds)
 
 void ASPHSimulatorCPU::Simulate(float DeltaSeconds)
 {
-	// TODO:初期化はあとで加速度を計算するようになったら不要になるのであとで消す
 	for (int32 ParticleIdx = 0; ParticleIdx < NumParticles; ++ParticleIdx)
 	{
+		Densities[ParticleIdx] = 0.0f;
 		Accelerations[ParticleIdx] = FVector2D::ZeroVector;
 	}
 
@@ -135,9 +135,6 @@ void ASPHSimulatorCPU::Simulate(float DeltaSeconds)
 
 		for (int32 ParticleIdx = 0; ParticleIdx < NumParticles; ++ParticleIdx)
 		{
-			// Initialize Density
-			Densities[ParticleIdx] = 0.0f;
-
 			// キャッシュするほどのものでもないのでNeighborGrid3D構築のときと同じ計算をしているのは許容する
 			const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(Positions3D[ParticleIdx], SimulationToUnitTransform);
 			const FIntVector& CellIndex = NeighborGrid3D.UnitToIndex(UnitPos);
@@ -185,69 +182,79 @@ void ASPHSimulatorCPU::Simulate(float DeltaSeconds)
 					}
 				}
 			}
+
+			CalculatePressure(ParticleIdx);
 		}
 
-		CalculatePressure();
-		ApplyPressure();
-		ApplyViscosity();
-		ApplyWallPenalty();
-		Integrate(DeltaSeconds);
+		// ApplyPressureが他のパーティクルの圧力値を使うので、すべて圧力値を計算してから別ループにする必要がある
+		for (int32 ParticleIdx = 0; ParticleIdx < NumParticles; ++ParticleIdx)
+		{
+			ApplyPressure(ParticleIdx);
+			ApplyViscosity(ParticleIdx);
+			ApplyWallPenalty(ParticleIdx);
+			Integrate(ParticleIdx, DeltaSeconds);
+		}
 	}
 	else
 	{
-		CalculateDensity();
-		CalculatePressure();
-		ApplyPressure();
-		ApplyViscosity();
-		ApplyWallPenalty();
-		Integrate(DeltaSeconds);
+		for (int32 ParticleIdx = 0; ParticleIdx < NumParticles; ++ParticleIdx)
+		{
+			CalculateDensity(ParticleIdx);
+			CalculatePressure(ParticleIdx);
+		}
+
+		// ApplyPressureが他のパーティクルの圧力値を使うので、すべて圧力値を計算してから別ループにする必要がある
+		for (int32 ParticleIdx = 0; ParticleIdx < NumParticles; ++ParticleIdx)
+		{
+			ApplyPressure(ParticleIdx);
+			ApplyViscosity(ParticleIdx);
+			ApplyWallPenalty(ParticleIdx);
+			Integrate(ParticleIdx, DeltaSeconds);
+		}
 	}
 }
 
-void ASPHSimulatorCPU::CalculateDensity()
+void ASPHSimulatorCPU::CalculateDensity(int32 ParticleIdx)
 {
 #if 1
-	for (int32 i = 0; i < NumParticles; ++i)
+	Densities[ParticleIdx] = 0.0f;
+
+	for (int32 AnotherParticleIdx = 0; AnotherParticleIdx < NumParticles; ++AnotherParticleIdx)
 	{
-		Densities[i] = 0.0f;
-
-		for (int32 j = 0; j < NumParticles; ++j)
+		if (ParticleIdx == AnotherParticleIdx)
 		{
-			if (i == j)
-			{
-				continue;
-			}
+			continue;
+		}
 
-			const FVector2D& DiffPos = Positions[j] - Positions[i];
-			float DistanceSq = DiffPos.SizeSquared();
-			if (DistanceSq < SmoothLenSq)
-			{
-				float DiffLenSq = SmoothLenSq - DistanceSq;
-				Densities[i] += DensityCoef * DiffLenSq * DiffLenSq * DiffLenSq;
-			}
+		const FVector2D& DiffPos = Positions[AnotherParticleIdx] - Positions[ParticleIdx];
+		float DistanceSq = DiffPos.SizeSquared();
+		if (DistanceSq < SmoothLenSq)
+		{
+			float DiffLenSq = SmoothLenSq - DistanceSq;
+			Densities[ParticleIdx] += DensityCoef * DiffLenSq * DiffLenSq * DiffLenSq;
 		}
 	}
 #else
 	ParallelFor(NumThreads,
 		[this](int32 ThreadIndex)
 		{
-			for (int32 i = NumThreadParticles * ThreadIndex; i < NumThreadParticles * (ThreadIndex + 1) && i < NumParticles; ++i)
+			for (int32 ParticleIdx = NumThreadParticles * ThreadIndex; ParticleIdx < NumThreadParticles * (ThreadIndex + 1) && ParticleIdx < NumParticles; ++ParticleIdx)
 			{
-				Densities[i] = 0.0f;
+				Densities[ParticleIdx] = 0.0f;
 
-				for (int32 j = 0; j < NumParticles; ++j)
+				for (int32 AnotherParticleIdx = 0; AnotherParticleIdx < NumParticles; ++AnotherParticleIdx)
 				{
-					if (i == j)
+					if (ParticleIdx == AnotherParticleIdx)
 					{
 						continue;
 					}
 
-					const FVector2D& DiffPos = Positions[j] - Positions[i];
+					const FVector2D& DiffPos = Positions[AnotherParticleIdx] - Positions[ParticleIdx];
 					float DistanceSq = DiffPos.SizeSquared();
 					if (DistanceSq < SmoothLenSq)
 					{
 						float DiffLenSq = SmoothLenSq - DistanceSq;
-						Densities[i] += DensityCoef * DiffLenSq * DiffLenSq * DiffLenSq;
+						Densities[ParticleIdx] += DensityCoef * DiffLenSq * DiffLenSq * DiffLenSq;
 					}
 				}
 			}
@@ -256,105 +263,99 @@ void ASPHSimulatorCPU::CalculateDensity()
 #endif
 }
 
-void ASPHSimulatorCPU::CalculatePressure()
+void ASPHSimulatorCPU::CalculatePressure(int32 ParticleIdx)
 {
 #if 1
-	for (int32 i = 0; i < NumParticles; ++i)
-	{
-		Pressures[i] = PressureStiffness * FMath::Max(FMath::Pow(Densities[i] / RestDensity, 7) - 1.0f, 0.0f);
-	}
+	Pressures[ParticleIdx] = PressureStiffness * FMath::Max(FMath::Pow(Densities[ParticleIdx] / RestDensity, 7) - 1.0f, 0.0f);
 #else
 	ParallelFor(
 		NumParticles,
-		[this](int32 i)
+		[this](int32 ParticleIdx)
 		{
-			Pressures[i] = PressureStiffness * FMath::Max(FMath::Pow(Densities[i] / RestDensity, 7) - 1.0f, 0.0f);
+			Pressures[ParticleIdx] = PressureStiffness * FMath::Max(FMath::Pow(Densities[ParticleIdx] / RestDensity, 7) - 1.0f, 0.0f);
 		}
 	);
 #endif
 }
 
-void ASPHSimulatorCPU::ApplyPressure()
+void ASPHSimulatorCPU::ApplyPressure(int32 ParticleIdx)
 {
 #if 1
-	for (int32 i = 0; i < NumParticles; ++i)
+	FVector2D AccumPressure = FVector2D::ZeroVector;
+
+	for (int32 AnotherParticleIdx = 0; AnotherParticleIdx < NumParticles; ++AnotherParticleIdx)
 	{
-		FVector2D AccumPressure = FVector2D::ZeroVector;
-
-		for (int32 j = 0; j < NumParticles; ++j)
+		if (ParticleIdx == AnotherParticleIdx)
 		{
-			if (i == j)
-			{
-				continue;
-			}
+			continue;
+		}
 
-			const FVector2D& DiffPos = Positions[j] - Positions[i];
-			float DistanceSq = DiffPos.SizeSquared();
-			float Distance = DiffPos.Size();
-			if (DistanceSq < SmoothLenSq
-				&& Densities[j] > SMALL_NUMBER && Distance > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
-			{
-				float DiffLen = SmoothLength - Distance;
+		const FVector2D& DiffPos = Positions[AnotherParticleIdx] - Positions[ParticleIdx];
+		float DistanceSq = DiffPos.SizeSquared();
+		float Distance = DiffPos.Size();
+		if (DistanceSq < SmoothLenSq
+			&& Densities[AnotherParticleIdx] > SMALL_NUMBER && Distance > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
+		{
+			float DiffLen = SmoothLength - Distance;
 #if 1
-				// 数式と違うが、UnityGraphicsProgramming1がソースコードで使っていた式。こちらの方がなぜか安定するしフレームレートも上がる
-				float AvgPressure = 0.5f * (Pressures[i] + Pressures[j]);
-				AccumPressure += GradientPressureCoef * AvgPressure / Densities[j] * DiffLen * DiffLen / Distance * DiffPos;
+			// 数式と違うが、UnityGraphicsProgramming1がソースコードで使っていた式。こちらの方がなぜか安定するしフレームレートも上がる
+			float AvgPressure = 0.5f * (Pressures[ParticleIdx] + Pressures[AnotherParticleIdx]);
+			AccumPressure += GradientPressureCoef * AvgPressure / Densities[AnotherParticleIdx] * DiffLen * DiffLen / Distance * DiffPos;
 #else
-				float DiffPressure = Pressures[i] - Pressures[j];
-				AccumPressure += GradientPressureCoef * DiffPressure / Densities[j] * DiffLen * DiffLen / Distance * DiffPos;
+			float DiffPressure = Pressures[ParticleIdx] - Pressures[AnotherParticleIdx];
+			AccumPressure += GradientPressureCoef * DiffPressure / Densities[AnotherParticleIdx] * DiffLen * DiffLen / Distance * DiffPos;
 #endif
-			}
 		}
+	}
 
-		if (Densities[i] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
-		{
-			Accelerations[i] += AccumPressure / Densities[i];
-		}
-		else
-		{
-			(void)i;
-		}
+	if (Densities[ParticleIdx] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
+	{
+		Accelerations[ParticleIdx] += AccumPressure / Densities[ParticleIdx];
+	}
+	else
+	{
+		(void)ParticleIdx;
 	}
 #else
 	ParallelFor(NumThreads,
 		[this](int32 ThreadIndex)
 		{
-			for (int32 i = NumThreadParticles * ThreadIndex; i < NumThreadParticles * (ThreadIndex + 1) && i < NumParticles; ++i)
+			for (int32 ParticleIdx = NumThreadParticles * ThreadIndex; ParticleIdx < NumThreadParticles * (ThreadIndex + 1) && ParticleIdx < NumParticles; ++ParticleIdx)
 			{
 				FVector2D AccumPressure = FVector2D::ZeroVector;
 
-				for (int32 j = 0; j < NumParticles; ++j)
+				for (int32 AnotherParticleIdx = 0; AnotherParticleIdx < NumParticles; ++AnotherParticleIdx)
 				{
-					if (i == j)
+					if (ParticleIdx == AnotherParticleIdx)
 					{
 						continue;
 					}
 
-					const FVector2D& DiffPos = Positions[j] - Positions[i];
+					const FVector2D& DiffPos = Positions[AnotherParticleIdx] - Positions[ParticleIdx];
 					float DistanceSq = DiffPos.SizeSquared();
 					float Distance = DiffPos.Size();
 					if (DistanceSq < SmoothLenSq
-						&& Densities[j] > SMALL_NUMBER && Distance > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
+						&& Densities[AnotherParticleIdx] > SMALL_NUMBER && Distance > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
 					{
 						float DiffLen = SmoothLength - Distance;
 #if 1
 						// 数式と違うが、UnityGraphicsProgramming1がソースコードで使っていた式。こちらの方がなぜか安定するしフレームレートも上がる
-						float AvgPressure = 0.5f * (Pressures[i] + Pressures[j]);
-						AccumPressure += GradientPressureCoef * AvgPressure / Densities[j] * DiffLen * DiffLen / Distance * DiffPos;
+						float AvgPressure = 0.5f * (Pressures[ParticleIdx] + Pressures[AnotherParticleIdx]);
+						AccumPressure += GradientPressureCoef * AvgPressure / Densities[AnotherParticleIdx] * DiffLen * DiffLen / Distance * DiffPos;
 #else
-						float DiffPressure = Pressures[i] - Pressures[j];
-						AccumPressure += GradientPressureCoef * DiffPressure / Densities[j] * DiffLen * DiffLen / Distance * DiffPos;
+						float DiffPressure = Pressures[ParticleIdx] - Pressures[AnotherParticleIdx];
+						AccumPressure += GradientPressureCoef * DiffPressure / Densities[AnotherParticleIdx] * DiffLen * DiffLen / Distance * DiffPos;
 #endif
 					}
 				}
 
-				if (Densities[i] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
+				if (Densities[ParticleIdx] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
 				{
-					Accelerations[i] += AccumPressure / Densities[i];
+					Accelerations[ParticleIdx] += AccumPressure / Densities[ParticleIdx];
 				}
 				else
 				{
-					(void)i;
+					(void)ParticleIdx;
 				}
 			}
 		}
@@ -362,71 +363,68 @@ void ASPHSimulatorCPU::ApplyPressure()
 #endif
 }
 
-void ASPHSimulatorCPU::ApplyViscosity()
+void ASPHSimulatorCPU::ApplyViscosity(int32 ParticleIdx)
 {
 #if 1
-	for (int32 i = 0; i < NumParticles; ++i)
+	FVector2D AccumViscosity = FVector2D::ZeroVector;
+
+	for (int32 AnotherParticleIdx = 0; AnotherParticleIdx < NumParticles; ++AnotherParticleIdx)
 	{
-		FVector2D AccumViscosity = FVector2D::ZeroVector;
-
-		for (int32 j = 0; j < NumParticles; ++j)
+		if (ParticleIdx == AnotherParticleIdx)
 		{
-			if (i == j)
-			{
-				continue;
-			}
-
-			const FVector2D& DiffPos = Positions[j] - Positions[i];
-			float DistanceSq = DiffPos.SizeSquared();
-			if (DistanceSq < SmoothLenSq
-				&& Densities[j] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
-			{
-				const FVector2D& DiffVel = Velocities[j] - Velocities[i];
-				AccumViscosity += LaplacianViscosityCoef / Densities[j] * (SmoothLength - DiffPos.Size()) * DiffVel;
-			}
+			continue;
 		}
 
-		if (Densities[i] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
+		const FVector2D& DiffPos = Positions[AnotherParticleIdx] - Positions[ParticleIdx];
+		float DistanceSq = DiffPos.SizeSquared();
+		if (DistanceSq < SmoothLenSq
+			&& Densities[AnotherParticleIdx] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
 		{
-			Accelerations[i] += Viscosity * AccumViscosity / Densities[i];
+			const FVector2D& DiffVel = Velocities[AnotherParticleIdx] - Velocities[ParticleIdx];
+			AccumViscosity += LaplacianViscosityCoef / Densities[AnotherParticleIdx] * (SmoothLength - DiffPos.Size()) * DiffVel;
 		}
-		else
-		{
-			(void)i;
-		}
+	}
+
+	if (Densities[ParticleIdx] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
+	{
+		Accelerations[ParticleIdx] += Viscosity * AccumViscosity / Densities[ParticleIdx];
+	}
+	else
+	{
+		(void)ParticleIdx;
 	}
 #else
 	ParallelFor(NumThreads,
 		[this](int32 ThreadIndex)
 		{
-			for (int32 i = NumThreadParticles * ThreadIndex; i < NumThreadParticles * (ThreadIndex + 1) && i < NumParticles; ++i)
+			for (int32 ParticleIdx = NumThreadParticles * ThreadIndex; ParticleIdx < NumThreadParticles * (ThreadIndex + 1) && ParticleIdx < NumParticles; ++ParticleIdx)
 			{
 				FVector2D AccumViscosity = FVector2D::ZeroVector;
 
-				for (int32 j = 0; j < NumParticles; ++j)
+				for (int32 AnotherParticleIdx = 0; AnotherParticleIdx < NumParticles; ++AnotherParticleIdx)
 				{
-					if (i == j)
+					if (ParticleIdx == AnotherParticleIdx)
 					{
 						continue;
 					}
 
-					const FVector2D& DiffPos = Positions[j] - Positions[i];
+					const FVector2D& DiffPos = Positions[AnotherParticleIdx] - Positions[ParticleIdx];
 					float DistanceSq = DiffPos.SizeSquared();
 					if (DistanceSq < SmoothLenSq
-						&& Densities[j] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
+						&& Densities[AnotherParticleIdx] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
 					{
-						const FVector2D& DiffVel = Velocities[j] - Velocities[i];
-						AccumViscosity += LaplacianViscosityCoef / Densities[j] * (SmoothLength - DiffPos.Size()) * DiffVel;
+						const FVector2D& DiffVel = Velocities[AnotherParticleIdx] - Velocities[ParticleIdx];
+						AccumViscosity += LaplacianViscosityCoef / Densities[AnotherParticleIdx] * (SmoothLength - DiffPos.Size()) * DiffVel;
 					}
 				}
 
-				if (Densities[i] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
+				if (Densities[ParticleIdx] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
 				{
-					Accelerations[i] += Viscosity * AccumViscosity / Densities[i];
+					Accelerations[ParticleIdx] += Viscosity * AccumViscosity / Densities[ParticleIdx];
 				}
 				else
 				{
-					(void)i;
+					(void)ParticleIdx;
 				}
 			}
 		}
@@ -434,60 +432,54 @@ void ASPHSimulatorCPU::ApplyViscosity()
 #endif
 }
 
-void ASPHSimulatorCPU::ApplyWallPenalty()
+void ASPHSimulatorCPU::ApplyWallPenalty(int32 ParticleIdx)
 {
 	//TODO: SPHって言っても加速度使わずにPBD使ってもいいはずなんだよな
 #if 1
-	for (int32 i = 0; i < NumParticles; ++i)
-	{
-		// 上境界
-		Accelerations[i] += FMath::Max(0.0f, Positions[i].Y - WallBox.Max.Y) * WallStiffness * FVector2D(0.0f, -1.0f);
-		// 下境界
-		Accelerations[i] += FMath::Max(0.0f, WallBox.Min.Y - Positions[i].Y) * WallStiffness * FVector2D(0.0f, 1.0f);
-		// 左境界
-		Accelerations[i] += FMath::Max(0.0f, WallBox.Min.X - Positions[i].X) * WallStiffness * FVector2D(1.0f, 0.0f);
-		// 右境界
-		Accelerations[i] += FMath::Max(0.0f, Positions[i].X - WallBox.Max.X) * WallStiffness * FVector2D(-1.0f, 0.0f);
-	}
+	// 上境界
+	Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].Y - WallBox.Max.Y) * WallStiffness * FVector2D(0.0f, -1.0f);
+	// 下境界
+	Accelerations[ParticleIdx] += FMath::Max(0.0f, WallBox.Min.Y - Positions[ParticleIdx].Y) * WallStiffness * FVector2D(0.0f, 1.0f);
+	// 左境界
+	Accelerations[ParticleIdx] += FMath::Max(0.0f, WallBox.Min.X - Positions[ParticleIdx].X) * WallStiffness * FVector2D(1.0f, 0.0f);
+	// 右境界
+	Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].X - WallBox.Max.X) * WallStiffness * FVector2D(-1.0f, 0.0f);
 #else
 	ParallelFor(
 		NumParticles,
-		[this](int32 i)
+		[this](int32 ParticleIdx)
 		{
 			// 上境界
-			Accelerations[i] += FMath::Max(0.0f, Positions[i].Y - WallBox.Max.Y) * WallStiffness * FVector2D(0.0f, -1.0f);
+			Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].Y - WallBox.Max.Y) * WallStiffness * FVector2D(0.0f, -1.0f);
 			// 下境界
-			Accelerations[i] += FMath::Max(0.0f, WallBox.Min.Y - Positions[i].Y) * WallStiffness * FVector2D(0.0f, 1.0f);
+			Accelerations[ParticleIdx] += FMath::Max(0.0f, WallBox.Min.Y - Positions[ParticleIdx].Y) * WallStiffness * FVector2D(0.0f, 1.0f);
 			// 左境界
-			Accelerations[i] += FMath::Max(0.0f, WallBox.Min.X - Positions[i].X) * WallStiffness * FVector2D(1.0f, 0.0f);
+			Accelerations[ParticleIdx] += FMath::Max(0.0f, WallBox.Min.X - Positions[ParticleIdx].X) * WallStiffness * FVector2D(1.0f, 0.0f);
 			// 右境界
-			Accelerations[i] += FMath::Max(0.0f, Positions[i].X - WallBox.Max.X) * WallStiffness * FVector2D(-1.0f, 0.0f);
+			Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].X - WallBox.Max.X) * WallStiffness * FVector2D(-1.0f, 0.0f);
 		}
 	);
 #endif
 }
 
-void ASPHSimulatorCPU::Integrate(float DeltaSeconds)
+void ASPHSimulatorCPU::Integrate(int32 ParticleIdx, float DeltaSeconds)
 {
 #if 1
-	for (int32 i = 0; i < NumParticles; ++i)
-	{
-		Accelerations[i] += FVector2D(0.0f, Gravity);
-		Accelerations[i] += FVector2D(0.0f, Gravity);
-		// 前進オイラー法
-		Velocities[i] += Accelerations[i] * DeltaSeconds;
-		Positions[i] += Velocities[i] * DeltaSeconds;
-	}
+	Accelerations[ParticleIdx] += FVector2D(0.0f, Gravity);
+	Accelerations[ParticleIdx] += FVector2D(0.0f, Gravity);
+	// 前進オイラー法
+	Velocities[ParticleIdx] += Accelerations[ParticleIdx] * DeltaSeconds;
+	Positions[ParticleIdx] += Velocities[ParticleIdx] * DeltaSeconds;
 #else
 	ParallelFor(
 		NumParticles,
-		[this, DeltaSeconds](int32 i)
+		[this, DeltaSeconds](int32 ParticleIdx)
 		{
-			Accelerations[i] += FVector2D(0.0f, Gravity);
-			Accelerations[i] += FVector2D(0.0f, Gravity);
+			Accelerations[ParticleIdx] += FVector2D(0.0f, Gravity);
+			Accelerations[ParticleIdx] += FVector2D(0.0f, Gravity);
 			// 前進オイラー法
-			Velocities[i] += Accelerations[i] * DeltaSeconds;
-			Positions[i] += Velocities[i] * DeltaSeconds;
+			Velocities[ParticleIdx] += Accelerations[ParticleIdx] * DeltaSeconds;
+			Positions[ParticleIdx] += Velocities[ParticleIdx] * DeltaSeconds;
 		}
 	);
 #endif
