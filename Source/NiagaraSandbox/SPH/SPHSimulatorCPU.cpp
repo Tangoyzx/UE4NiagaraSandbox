@@ -145,71 +145,74 @@ void ASPHSimulatorCPU::CalculateDensity()
 	{
 		Densities[i] = 0.0f;
 
-		#if 1
-		// TODO:各フェイズで毎回計算するのは冗長
-		const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(Positions3D[i], SimulationToUnitTransform);
-		const FIntVector& CellIndex = NeighborGrid3D.UnitToIndex(UnitPos);
-		// TODO:判定条件も共通関数化できるな
-		if (!NeighborGrid3D.IsValidCellIndex(CellIndex))
+		if (bUseNeighborGrid3D)
 		{
-			// TODO:はみ出るのはどういうケースだ？
-			continue;
-		}
-
-		FIntVector AdjacentIndexOffsets[9] = {
-			FIntVector(0, -1, -1),
-			FIntVector(0, 0, -1),
-			FIntVector(0, +1, -1),
-			FIntVector(0, -1, 0),
-			FIntVector(0, 0, 0),
-			FIntVector(0, +1, 0),
-			FIntVector(0, -1, +1),
-			FIntVector(0, 0, +1),
-			FIntVector(0, +1, +1)
-		};
-
-		for (int32 j = 0; j < 9; ++j)
-		{
-			const FIntVector& AdjacentCellIndex = CellIndex + AdjacentIndexOffsets[j];
+			// TODO:各フェイズで毎回計算するのは冗長
+			const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(Positions3D[i], SimulationToUnitTransform);
+			const FIntVector& CellIndex = NeighborGrid3D.UnitToIndex(UnitPos);
 			// TODO:判定条件も共通関数化できるな
-			if (!NeighborGrid3D.IsValidCellIndex(AdjacentCellIndex))
+			if (!NeighborGrid3D.IsValidCellIndex(CellIndex))
 			{
+				// TODO:はみ出るのはどういうケースだ？
 				continue;
 			}
 
-			for (int32 k = 0; k < MaxNeighborsPerCell; ++k)
+			FIntVector AdjacentIndexOffsets[9] = {
+				FIntVector(0, -1, -1),
+				FIntVector(0, 0, -1),
+				FIntVector(0, +1, -1),
+				FIntVector(0, -1, 0),
+				FIntVector(0, 0, 0),
+				FIntVector(0, +1, 0),
+				FIntVector(0, -1, +1),
+				FIntVector(0, 0, +1),
+				FIntVector(0, +1, +1)
+			};
+
+			for (int32 j = 0; j < 9; ++j)
 			{
-				int32 NeighborLinearIndex = NeighborGrid3D.NeighborGridIndexToLinear(AdjacentCellIndex, k);
-				int32 ParticleIndex = NeighborGrid3D.GetParticleNeighbor(NeighborLinearIndex);
-				if (i != ParticleIndex && ParticleIndex != INDEX_NONE)
+				const FIntVector& AdjacentCellIndex = CellIndex + AdjacentIndexOffsets[j];
+				// TODO:判定条件も共通関数化できるな
+				if (!NeighborGrid3D.IsValidCellIndex(AdjacentCellIndex))
 				{
-					const FVector2D& DiffPos = Positions[ParticleIndex] - Positions[i];
-					float DistanceSq = DiffPos.SizeSquared();
-					if (DistanceSq < SmoothLenSq)
+					continue;
+				}
+
+				for (int32 k = 0; k < MaxNeighborsPerCell; ++k)
+				{
+					int32 NeighborLinearIndex = NeighborGrid3D.NeighborGridIndexToLinear(AdjacentCellIndex, k);
+					int32 ParticleIndex = NeighborGrid3D.GetParticleNeighbor(NeighborLinearIndex);
+					if (i != ParticleIndex && ParticleIndex != INDEX_NONE)
 					{
-						float DiffLenSq = SmoothLenSq - DistanceSq;
-						Densities[i] += DensityCoef * DiffLenSq * DiffLenSq * DiffLenSq;
+						const FVector2D& DiffPos = Positions[ParticleIndex] - Positions[i];
+						float DistanceSq = DiffPos.SizeSquared();
+						if (DistanceSq < SmoothLenSq)
+						{
+							float DiffLenSq = SmoothLenSq - DistanceSq;
+							Densities[i] += DensityCoef * DiffLenSq * DiffLenSq * DiffLenSq;
+						}
 					}
 				}
 			}
 		}
-		#else
-		for (int32 j = 0; j < NumParticles; ++j)
+		else
 		{
-			if (i == j)
+			for (int32 j = 0; j < NumParticles; ++j)
 			{
-				continue;
-			}
+				if (i == j)
+				{
+					continue;
+				}
 
-			const FVector2D& DiffPos = Positions[j] - Positions[i];
-			float DistanceSq = DiffPos.SizeSquared();
-			if (DistanceSq < SmoothLenSq)
-			{
-				float DiffLenSq = SmoothLenSq - DistanceSq;
-				Densities[i] += DensityCoef * DiffLenSq * DiffLenSq * DiffLenSq;
+				const FVector2D& DiffPos = Positions[j] - Positions[i];
+				float DistanceSq = DiffPos.SizeSquared();
+				if (DistanceSq < SmoothLenSq)
+				{
+					float DiffLenSq = SmoothLenSq - DistanceSq;
+					Densities[i] += DensityCoef * DiffLenSq * DiffLenSq * DiffLenSq;
+				}
 			}
 		}
-		#endif
 	}
 #else
 	ParallelFor(NumThreads,
