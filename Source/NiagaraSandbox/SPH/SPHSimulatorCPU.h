@@ -100,10 +100,10 @@ private:
 
 private:
 	void Simulate(float DeltaSeconds);
-	void CalculateDensity(int32 ParticleIdx);
+	void CalculateDensity(int32 ParticleIdx, int32 AnotherParticleIdx);
 	void CalculatePressure(int32 ParticleIdx);
-	void ApplyPressure(int32 ParticleIdx);
-	void ApplyViscosity(int32 ParticleIdx);
+	void ApplyPressure(int32 ParticleIdx, int32 AnotherParticleIdx);
+	void ApplyViscosity(int32 ParticleIdx, int32 AnotherParticleIdx);
 	void ApplyWallPenalty(int32 ParticleIdx);
 	void Integrate(int32 ParticleIdx, float DeltaSeconds);
 
