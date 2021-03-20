@@ -63,7 +63,7 @@ private:
 	float FrameRate = 60.0f;
 
 	UPROPERTY(EditAnywhere)
-	FBox2D WallBox = FBox2D(FVector2D(-8.0f, -4.5f), FVector2D(8.0f, 4.5f));
+	FBox2D WallBox = FBox2D(FVector2D(-4.5f, -4.5f), FVector2D(4.5f, 4.5f));
 
 	UPROPERTY(EditAnywhere)
 	float WallStiffness = 3000.0f;
@@ -90,13 +90,16 @@ private:
 	float InitPosRadius = 4.0f;
 
 	UPROPERTY(EditAnywhere)
-	FIntVector NumCells = FIntVector(1, 1, 1);
+	int32 NumCellsX = 10;
+
+	UPROPERTY(EditAnywhere)
+	int32 NumCellsY = 10;
 
 	UPROPERTY(EditAnywhere)
 	int32 MaxNeighborsPerCell = 8;
 
 	UPROPERTY(EditAnywhere)
-	FVector WorldBBoxSize = FVector(10.0f, 10.0f, 10.0f);
+	FVector2D WorldBBoxSize = FVector2D(10.0f, 10.0f);
 
 private:
 	void Simulate(float DeltaSeconds);
