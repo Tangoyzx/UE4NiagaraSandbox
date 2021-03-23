@@ -1,4 +1,4 @@
-#include "SPHSimulatorCPU.h"
+#include "SPH2DSimulatorCPU.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Engine/Texture2D.h"
 #include "Components/ArrowComponent.h"
@@ -22,7 +22,7 @@ namespace
 	}
 }
 
-void ASPHSimulatorCPU::BeginPlay()
+void ASPH2DSimulatorCPU::BeginPlay()
 {
 	Super::BeginPlay();
 
@@ -69,7 +69,7 @@ void ASPHSimulatorCPU::BeginPlay()
 	NumThreadParticles = (NumParticles + NumThreads - 1) / NumThreads;
 }
 
-void ASPHSimulatorCPU::Tick(float DeltaSeconds)
+void ASPH2DSimulatorCPU::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
@@ -93,7 +93,7 @@ void ASPHSimulatorCPU::Tick(float DeltaSeconds)
 	SetNiagaraArrayVector(NiagaraComponent, FName("Positions"), Positions3D);
 }
 
-void ASPHSimulatorCPU::Simulate(float DeltaSeconds)
+void ASPH2DSimulatorCPU::Simulate(float DeltaSeconds)
 {
 	for (int32 ParticleIdx = 0; ParticleIdx < NumParticles; ++ParticleIdx)
 	{
@@ -294,7 +294,7 @@ void ASPHSimulatorCPU::Simulate(float DeltaSeconds)
 	}
 }
 
-void ASPHSimulatorCPU::CalculateDensity(int32 ParticleIdx, int32 AnotherParticleIdx)
+void ASPH2DSimulatorCPU::CalculateDensity(int32 ParticleIdx, int32 AnotherParticleIdx)
 {
 	check(ParticleIdx != AnotherParticleIdx);
 
@@ -307,12 +307,12 @@ void ASPHSimulatorCPU::CalculateDensity(int32 ParticleIdx, int32 AnotherParticle
 	}
 }
 
-void ASPHSimulatorCPU::CalculatePressure(int32 ParticleIdx)
+void ASPH2DSimulatorCPU::CalculatePressure(int32 ParticleIdx)
 {
 	Pressures[ParticleIdx] = PressureStiffness * FMath::Max(FMath::Pow(Densities[ParticleIdx] / RestDensity, 7) - 1.0f, 0.0f);
 }
 
-void ASPHSimulatorCPU::ApplyPressure(int32 ParticleIdx, int32 AnotherParticleIdx)
+void ASPH2DSimulatorCPU::ApplyPressure(int32 ParticleIdx, int32 AnotherParticleIdx)
 {
 	check(ParticleIdx != AnotherParticleIdx);
 
@@ -341,7 +341,7 @@ void ASPHSimulatorCPU::ApplyPressure(int32 ParticleIdx, int32 AnotherParticleIdx
 	}
 }
 
-void ASPHSimulatorCPU::ApplyViscosity(int32 ParticleIdx, int32 AnotherParticleIdx)
+void ASPH2DSimulatorCPU::ApplyViscosity(int32 ParticleIdx, int32 AnotherParticleIdx)
 {
 	check(ParticleIdx != AnotherParticleIdx);
 
@@ -361,7 +361,7 @@ void ASPHSimulatorCPU::ApplyViscosity(int32 ParticleIdx, int32 AnotherParticleId
 	}
 }
 
-void ASPHSimulatorCPU::ApplyWallPenalty(int32 ParticleIdx)
+void ASPH2DSimulatorCPU::ApplyWallPenalty(int32 ParticleIdx)
 {
 	//TODO: SPH‚Á‚ÄŒ¾‚Á‚Ä‚à‰Á‘¬“xŽg‚í‚¸‚ÉPBDŽg‚Á‚Ä‚à‚¢‚¢‚Í‚¸‚È‚ñ‚¾‚æ‚È
 	// ã‹«ŠE
@@ -374,7 +374,7 @@ void ASPHSimulatorCPU::ApplyWallPenalty(int32 ParticleIdx)
 	Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].X - WallBox.Max.X) * WallStiffness * FVector2D(-1.0f, 0.0f);
 }
 
-void ASPHSimulatorCPU::Integrate(int32 ParticleIdx, float DeltaSeconds)
+void ASPH2DSimulatorCPU::Integrate(int32 ParticleIdx, float DeltaSeconds)
 {
 	Accelerations[ParticleIdx] += FVector2D(0.0f, Gravity);
 	Accelerations[ParticleIdx] += FVector2D(0.0f, Gravity);
@@ -383,7 +383,7 @@ void ASPHSimulatorCPU::Integrate(int32 ParticleIdx, float DeltaSeconds)
 	Positions[ParticleIdx] += Velocities[ParticleIdx] * DeltaSeconds;
 }
 
-ASPHSimulatorCPU::ASPHSimulatorCPU()
+ASPH2DSimulatorCPU::ASPH2DSimulatorCPU()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
@@ -440,23 +440,23 @@ ASPHSimulatorCPU::ASPHSimulatorCPU()
 #endif // WITH_EDITORONLY_DATA
 }
 
-void ASPHSimulatorCPU::PostRegisterAllComponents()
+void ASPH2DSimulatorCPU::PostRegisterAllComponents()
 {
 	Super::PostRegisterAllComponents();
 
 	// Set Notification Delegate
 	if (NiagaraComponent)
 	{
-		NiagaraComponent->OnSystemFinished.AddUniqueDynamic(this, &ASPHSimulatorCPU::OnNiagaraSystemFinished);
+		NiagaraComponent->OnSystemFinished.AddUniqueDynamic(this, &ASPH2DSimulatorCPU::OnNiagaraSystemFinished);
 	}
 }
 
-void ASPHSimulatorCPU::SetDestroyOnSystemFinish(bool bShouldDestroyOnSystemFinish)
+void ASPH2DSimulatorCPU::SetDestroyOnSystemFinish(bool bShouldDestroyOnSystemFinish)
 {
 	bDestroyOnSystemFinish = bShouldDestroyOnSystemFinish ? 1 : 0;  
 };
 
-void ASPHSimulatorCPU::OnNiagaraSystemFinished(UNiagaraComponent* FinishedComponent)
+void ASPH2DSimulatorCPU::OnNiagaraSystemFinished(UNiagaraComponent* FinishedComponent)
 {
 	if (bDestroyOnSystemFinish)
 	{
@@ -465,7 +465,7 @@ void ASPHSimulatorCPU::OnNiagaraSystemFinished(UNiagaraComponent* FinishedCompon
 }
 
 #if WITH_EDITOR
-bool ASPHSimulatorCPU::GetReferencedContentObjects(TArray<UObject*>& Objects) const
+bool ASPH2DSimulatorCPU::GetReferencedContentObjects(TArray<UObject*>& Objects) const
 {
 	Super::GetReferencedContentObjects(Objects);
 
@@ -477,7 +477,7 @@ bool ASPHSimulatorCPU::GetReferencedContentObjects(TArray<UObject*>& Objects) co
 	return true;
 }
 
-void ASPHSimulatorCPU::ResetInLevel()
+void ASPH2DSimulatorCPU::ResetInLevel()
 {
 	if (NiagaraComponent)
 	{

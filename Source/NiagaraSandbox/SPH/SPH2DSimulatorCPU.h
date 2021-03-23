@@ -4,15 +4,16 @@
 #include "UObject/ObjectMacros.h"
 #include "GameFramework/Actor.h"
 #include "../Common/NeighborGrid3DCPU.h"
-#include "SPHSimulatorCPU.generated.h"
+#include "SPH2DSimulatorCPU.generated.h"
 
 UCLASS()
-class ASPHSimulatorCPU : public AActor
+// ANiagaraActorÇéQçlÇ…ÇµÇƒÇ¢ÇÈ
+class ASPH2DSimulatorCPU : public AActor
 {
 	GENERATED_BODY()
 
 public:
-	ASPHSimulatorCPU();
+	ASPH2DSimulatorCPU();
 
 	virtual void PostRegisterAllComponents() override;
 
