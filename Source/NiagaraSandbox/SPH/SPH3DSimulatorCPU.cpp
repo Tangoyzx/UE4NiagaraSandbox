@@ -10,6 +10,21 @@
 
 namespace
 {
+	FVector RandPointInSphere(const FBoxSphereBounds& BoxSphere)
+	{
+		FVector Point;
+		float L;
+
+		do
+		{
+			Point = FMath::RandPointInBox(BoxSphere.GetBox());
+			L = Point.SizeSquared();
+		}
+		while (L > BoxSphere.SphereRadius);
+
+		return Point;
+	}
+
 	// UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector()を参考にしている
 	void SetNiagaraArrayVector(UNiagaraComponent* NiagaraSystem, FName OverrideName, const TArray<FVector>& ArrayData)
 	{
@@ -31,35 +46,30 @@ void ASPH3DSimulatorCPU::BeginPlay()
 	Accelerations.SetNum(NumParticles);
 	Densities.SetNum(NumParticles);
 	Pressures.SetNum(NumParticles);
-	Positions3D.SetNum(NumParticles);
 
-	// InitPosRadius半径の円内にランダムに配置
+	// InitPosRadius半径の球内にランダムに配置
+	FBoxSphereBounds BoxSphere(WallBox.GetCenter(), FVector(InitPosRadius), InitPosRadius);
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
-		Positions[i] = WallBox.GetCenter() + FMath::RandPointInCircle(InitPosRadius);
+		Positions[i] = RandPointInSphere(WallBox);
 	}
 
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
-		Velocities[i] = FVector2D::ZeroVector;
-	}
-
-	for (int32 i = 0; i < NumParticles; ++i)
-	{
-		Positions3D[i] = FVector(0.0f, Positions[i].X, Positions[i].Y);
+		Velocities[i] = FVector::ZeroVector;
 	}
 
 	if (bUseNeighborGrid3D)
 	{
 		//TODO: [-WorldBBoxSize / 2, WorldBBoxSize / 2]を[0,1]に写像して扱う。RotationとTranslationはなし
-		SimulationToUnitTransform = FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y));
-		NeighborGrid3D.Initialize(FIntVector(1, NumCellsX, NumCellsY), MaxNeighborsPerCell);
+		SimulationToUnitTransform = FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / WorldBBoxSize);
+		NeighborGrid3D.Initialize(FIntVector(NumCellsX, NumCellsY, NumCellsZ), MaxNeighborsPerCell);
 	}
 
 	// Tick()で設定しても、レベルにNiagaraSystemが最初から配置されていると、初回のスポーンでは配列は初期値を使ってしまい
 	//間に合わないのでBeginPlay()でも設定する
 	NiagaraComponent->SetNiagaraVariableInt("NumParticles", NumParticles);
-	SetNiagaraArrayVector(NiagaraComponent, FName("Positions"), Positions3D);
+	SetNiagaraArrayVector(NiagaraComponent, FName("Positions"), Positions);
 
 	DensityCoef = Mass * 4.0f / PI / FMath::Pow(SmoothLength, 8);
 	GradientPressureCoef = Mass * -30.0f / PI / FMath::Pow(SmoothLength, 5);
@@ -84,13 +94,8 @@ void ASPH3DSimulatorCPU::Tick(float DeltaSeconds)
 		}
 	}
 
-	for (int32 i = 0; i < NumParticles; ++i)
-	{
-		Positions3D[i] = FVector(0.0f, Positions[i].X, Positions[i].Y);
-	}
-
 	NiagaraComponent->SetNiagaraVariableInt("NumParticles", NumParticles);
-	SetNiagaraArrayVector(NiagaraComponent, FName("Positions"), Positions3D);
+	SetNiagaraArrayVector(NiagaraComponent, FName("Positions"), Positions);
 }
 
 void ASPH3DSimulatorCPU::Simulate(float DeltaSeconds)
@@ -98,7 +103,7 @@ void ASPH3DSimulatorCPU::Simulate(float DeltaSeconds)
 	for (int32 ParticleIdx = 0; ParticleIdx < NumParticles; ++ParticleIdx)
 	{
 		Densities[ParticleIdx] = 0.0f;
-		Accelerations[ParticleIdx] = FVector2D::ZeroVector;
+		Accelerations[ParticleIdx] = FVector::ZeroVector;
 	}
 
 	if (bUseNeighborGrid3D)
@@ -111,7 +116,7 @@ void ASPH3DSimulatorCPU::Simulate(float DeltaSeconds)
 			{
 				for (int32 ParticleIdx = NumThreadParticles * ThreadIndex; ParticleIdx < NumThreadParticles * (ThreadIndex + 1) && ParticleIdx < NumParticles; ++ParticleIdx)
 				{
-					const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(Positions3D[ParticleIdx], SimulationToUnitTransform);
+					const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(Positions[ParticleIdx], SimulationToUnitTransform);
 					const FIntVector& CellIndex = NeighborGrid3D.UnitToIndex(UnitPos);
 					if (NeighborGrid3D.IsValidCellIndex(CellIndex))
 					{
@@ -131,7 +136,7 @@ void ASPH3DSimulatorCPU::Simulate(float DeltaSeconds)
 					}
 					else
 					{
-						UE_LOG(LogTemp, Warning, TEXT("There is a particle which is out of NeighborGrid3D. Idx = %d. Position = (%f, %f, %f)."), ParticleIdx, Positions3D[ParticleIdx].X, Positions3D[ParticleIdx].Y, Positions3D[ParticleIdx].Z);
+						UE_LOG(LogTemp, Warning, TEXT("There is a particle which is out of NeighborGrid3D. Idx = %d. Position = (%f, %f, %f)."), ParticleIdx, Positions[ParticleIdx].X, Positions[ParticleIdx].Y, Positions[ParticleIdx].Z);
 						continue;
 					}
 				}
@@ -144,7 +149,7 @@ void ASPH3DSimulatorCPU::Simulate(float DeltaSeconds)
 				for (int32 ParticleIdx = NumThreadParticles * ThreadIndex; ParticleIdx < NumThreadParticles * (ThreadIndex + 1) && ParticleIdx < NumParticles; ++ParticleIdx)
 				{
 					// キャッシュするほどのものでもないのでNeighborGrid3D構築のときと同じ計算をしているのは許容する
-					const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(Positions3D[ParticleIdx], SimulationToUnitTransform);
+					const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(Positions[ParticleIdx], SimulationToUnitTransform);
 					const FIntVector& CellIndex = NeighborGrid3D.UnitToIndex(UnitPos);
 
 					if (!NeighborGrid3D.IsValidCellIndex(CellIndex))
@@ -153,7 +158,17 @@ void ASPH3DSimulatorCPU::Simulate(float DeltaSeconds)
 						continue;
 					}
 
-					static FIntVector AdjacentIndexOffsets[9] = {
+					static FIntVector AdjacentIndexOffsets[27] = {
+						FIntVector(-1, -1, -1),
+						FIntVector(-1, 0, -1),
+						FIntVector(-1, +1, -1),
+						FIntVector(-1, -1, 0),
+						FIntVector(-1, 0, 0),
+						FIntVector(-1, +1, 0),
+						FIntVector(-1, -1, +1),
+						FIntVector(-1, 0, +1),
+						FIntVector(-1, +1, +1),
+
 						FIntVector(0, -1, -1),
 						FIntVector(0, 0, -1),
 						FIntVector(0, +1, -1),
@@ -162,10 +177,20 @@ void ASPH3DSimulatorCPU::Simulate(float DeltaSeconds)
 						FIntVector(0, +1, 0),
 						FIntVector(0, -1, +1),
 						FIntVector(0, 0, +1),
-						FIntVector(0, +1, +1)
+						FIntVector(0, +1, +1),
+
+						FIntVector(+1, -1, -1),
+						FIntVector(+1, 0, -1),
+						FIntVector(+1, +1, -1),
+						FIntVector(+1, -1, 0),
+						FIntVector(+1, 0, 0),
+						FIntVector(+1, +1, 0),
+						FIntVector(+1, -1, +1),
+						FIntVector(+1, 0, +1),
+						FIntVector(+1, +1, +1),
 					};
 
-					for (int32 AdjIdx = 0; AdjIdx < 9; ++AdjIdx)
+					for (int32 AdjIdx = 0; AdjIdx < 27; ++AdjIdx)
 					{
 						const FIntVector& AdjacentCellIndex = CellIndex + AdjacentIndexOffsets[AdjIdx];
 						if (!NeighborGrid3D.IsValidCellIndex(AdjacentCellIndex))
@@ -198,7 +223,7 @@ void ASPH3DSimulatorCPU::Simulate(float DeltaSeconds)
 				for (int32 ParticleIdx = NumThreadParticles * ThreadIndex; ParticleIdx < NumThreadParticles * (ThreadIndex + 1) && ParticleIdx < NumParticles; ++ParticleIdx)
 				{
 					// キャッシュするほどのものでもないのでNeighborGrid3D構築のときと同じ計算をしているのは許容する
-					const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(Positions3D[ParticleIdx], SimulationToUnitTransform);
+					const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(Positions[ParticleIdx], SimulationToUnitTransform);
 					const FIntVector& CellIndex = NeighborGrid3D.UnitToIndex(UnitPos);
 
 					if (!NeighborGrid3D.IsValidCellIndex(CellIndex))
@@ -207,7 +232,17 @@ void ASPH3DSimulatorCPU::Simulate(float DeltaSeconds)
 						continue;
 					}
 
-					static FIntVector AdjacentIndexOffsets[9] = {
+					static FIntVector AdjacentIndexOffsets[27] = {
+						FIntVector(-1, -1, -1),
+						FIntVector(-1, 0, -1),
+						FIntVector(-1, +1, -1),
+						FIntVector(-1, -1, 0),
+						FIntVector(-1, 0, 0),
+						FIntVector(-1, +1, 0),
+						FIntVector(-1, -1, +1),
+						FIntVector(-1, 0, +1),
+						FIntVector(-1, +1, +1),
+
 						FIntVector(0, -1, -1),
 						FIntVector(0, 0, -1),
 						FIntVector(0, +1, -1),
@@ -216,10 +251,20 @@ void ASPH3DSimulatorCPU::Simulate(float DeltaSeconds)
 						FIntVector(0, +1, 0),
 						FIntVector(0, -1, +1),
 						FIntVector(0, 0, +1),
-						FIntVector(0, +1, +1)
+						FIntVector(0, +1, +1),
+
+						FIntVector(+1, -1, -1),
+						FIntVector(+1, 0, -1),
+						FIntVector(+1, +1, -1),
+						FIntVector(+1, -1, 0),
+						FIntVector(+1, 0, 0),
+						FIntVector(+1, +1, 0),
+						FIntVector(+1, -1, +1),
+						FIntVector(+1, 0, +1),
+						FIntVector(+1, +1, +1),
 					};
 
-					for (int32 AdjIdx = 0; AdjIdx < 9; ++AdjIdx)
+					for (int32 AdjIdx = 0; AdjIdx < 27; ++AdjIdx)
 					{
 						const FIntVector& AdjacentCellIndex = CellIndex + AdjacentIndexOffsets[AdjIdx];
 						if (!NeighborGrid3D.IsValidCellIndex(AdjacentCellIndex))
@@ -298,7 +343,7 @@ void ASPH3DSimulatorCPU::CalculateDensity(int32 ParticleIdx, int32 AnotherPartic
 {
 	check(ParticleIdx != AnotherParticleIdx);
 
-	const FVector2D& DiffPos = Positions[AnotherParticleIdx] - Positions[ParticleIdx];
+	const FVector& DiffPos = Positions[AnotherParticleIdx] - Positions[ParticleIdx];
 	float DistanceSq = DiffPos.SizeSquared();
 	if (DistanceSq < SmoothLenSq)
 	{
@@ -321,7 +366,7 @@ void ASPH3DSimulatorCPU::ApplyPressure(int32 ParticleIdx, int32 AnotherParticleI
 		return;
 	}
 
-	const FVector2D& DiffPos = Positions[AnotherParticleIdx] - Positions[ParticleIdx];
+	const FVector& DiffPos = Positions[AnotherParticleIdx] - Positions[ParticleIdx];
 	float DistanceSq = DiffPos.SizeSquared();
 	float Distance = DiffPos.Size();
 	if (DistanceSq < SmoothLenSq
@@ -331,10 +376,10 @@ void ASPH3DSimulatorCPU::ApplyPressure(int32 ParticleIdx, int32 AnotherParticleI
 #if 1
 		// 数式と違うが、UnityGraphicsProgramming1がソースコードで使っていた式。こちらの方がなぜか安定するしフレームレートも上がる
 		float AvgPressure = 0.5f * (Pressures[ParticleIdx] + Pressures[AnotherParticleIdx]);
-		const FVector2D& Pressure = GradientPressureCoef * AvgPressure / Densities[AnotherParticleIdx] * DiffLen * DiffLen / Distance * DiffPos;
+		const FVector& Pressure = GradientPressureCoef * AvgPressure / Densities[AnotherParticleIdx] * DiffLen * DiffLen / Distance * DiffPos;
 #else
 		float DiffPressure = Pressures[ParticleIdx] - Pressures[AnotherParticleIdx];
-		const FVector2D& Pressure = GradientPressureCoef * DiffPressure / Densities[AnotherParticleIdx] * DiffLen * DiffLen / Distance * DiffPos;
+		const FVector& Pressure = GradientPressureCoef * DiffPressure / Densities[AnotherParticleIdx] * DiffLen * DiffLen / Distance * DiffPos;
 #endif
 
 		Accelerations[ParticleIdx] += Pressure / Densities[ParticleIdx];
@@ -350,13 +395,13 @@ void ASPH3DSimulatorCPU::ApplyViscosity(int32 ParticleIdx, int32 AnotherParticle
 		return;
 	}
 
-	const FVector2D& DiffPos = Positions[AnotherParticleIdx] - Positions[ParticleIdx];
+	const FVector& DiffPos = Positions[AnotherParticleIdx] - Positions[ParticleIdx];
 	float DistanceSq = DiffPos.SizeSquared();
 	if (DistanceSq < SmoothLenSq
 		&& Densities[AnotherParticleIdx] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
 	{
-		const FVector2D& DiffVel = Velocities[AnotherParticleIdx] - Velocities[ParticleIdx];
-		const FVector2D& ViscosityForce = LaplacianViscosityCoef / Densities[AnotherParticleIdx] * (SmoothLength - DiffPos.Size()) * DiffVel;
+		const FVector& DiffVel = Velocities[AnotherParticleIdx] - Velocities[ParticleIdx];
+		const FVector& ViscosityForce = LaplacianViscosityCoef / Densities[AnotherParticleIdx] * (SmoothLength - DiffPos.Size()) * DiffVel;
 		Accelerations[ParticleIdx] += Viscosity * ViscosityForce / Densities[ParticleIdx];
 	}
 }
@@ -365,19 +410,22 @@ void ASPH3DSimulatorCPU::ApplyWallPenalty(int32 ParticleIdx)
 {
 	//TODO: SPHって言っても加速度使わずにPBD使ってもいいはずなんだよな
 	// 上境界
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].Y - WallBox.Max.Y) * WallStiffness * FVector2D(0.0f, -1.0f);
+	Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].Z - WallBox.Max.Z) * WallStiffness * FVector(0.0f, 0.0f, -1.0f);
 	// 下境界
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, WallBox.Min.Y - Positions[ParticleIdx].Y) * WallStiffness * FVector2D(0.0f, 1.0f);
+	Accelerations[ParticleIdx] += FMath::Max(0.0f, WallBox.Min.Z - Positions[ParticleIdx].Z) * WallStiffness * FVector(0.0f, 0.0f, 1.0f);
 	// 左境界
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, WallBox.Min.X - Positions[ParticleIdx].X) * WallStiffness * FVector2D(1.0f, 0.0f);
+	Accelerations[ParticleIdx] += FMath::Max(0.0f, WallBox.Min.X - Positions[ParticleIdx].X) * WallStiffness * FVector(1.0f, 0.0f, 0.0f);
 	// 右境界
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].X - WallBox.Max.X) * WallStiffness * FVector2D(-1.0f, 0.0f);
+	Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].X - WallBox.Max.X) * WallStiffness * FVector(-1.0f, 0.0f, 0.0f);
+	// 奥境界
+	Accelerations[ParticleIdx] += FMath::Max(0.0f, WallBox.Min.Y - Positions[ParticleIdx].Y) * WallStiffness * FVector(0.0f, 1.0f, 0.0f);
+	// 手前境界
+	Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].Y - WallBox.Max.Y) * WallStiffness * FVector(0.0f, -1.0f, 0.0f);
 }
 
 void ASPH3DSimulatorCPU::Integrate(int32 ParticleIdx, float DeltaSeconds)
 {
-	Accelerations[ParticleIdx] += FVector2D(0.0f, Gravity);
-	Accelerations[ParticleIdx] += FVector2D(0.0f, Gravity);
+	Accelerations[ParticleIdx] += FVector(0.0f, 0.0f, Gravity);
 	// 前進オイラー法
 	Velocities[ParticleIdx] += Accelerations[ParticleIdx] * DeltaSeconds;
 	Positions[ParticleIdx] += Velocities[ParticleIdx] * DeltaSeconds;

@@ -64,7 +64,7 @@ private:
 	float FrameRate = 60.0f;
 
 	UPROPERTY(EditAnywhere)
-	FBox2D WallBox = FBox2D(FVector2D(-4.5f, -4.5f), FVector2D(4.5f, 4.5f));
+	FBox WallBox = FBox(FVector(-4.5f, -4.5f, -4.5f), FVector(4.5f, 4.5f, 4.5f));
 
 	UPROPERTY(EditAnywhere)
 	float WallStiffness = 3000.0f;
@@ -97,10 +97,13 @@ private:
 	int32 NumCellsY = 10;
 
 	UPROPERTY(EditAnywhere)
+	int32 NumCellsZ = 10;
+
+	UPROPERTY(EditAnywhere)
 	int32 MaxNeighborsPerCell = 8;
 
 	UPROPERTY(EditAnywhere)
-	FVector2D WorldBBoxSize = FVector2D(10.0f, 10.0f);
+	FVector WorldBBoxSize = FVector(10.0f, 10.0f, 10.0f);
 
 private:
 	void Simulate(float DeltaSeconds);
@@ -112,14 +115,13 @@ private:
 	void Integrate(int32 ParticleIdx, float DeltaSeconds);
 
 private:
-	TArray<FVector2D> Positions;
-	TArray<FVector2D> Velocities;
+	TArray<FVector> Positions;
+	TArray<FVector> Velocities;
 	// 加速度は毎フレーム計算するのでフレーム間のひきつぎはないのだが、使用メモリやTArrayの生成負荷をおさえるために
 	// 使いまわしている
-	TArray<FVector2D> Accelerations;
+	TArray<FVector> Accelerations;
 	TArray<float> Densities;
 	TArray<float> Pressures;
-	TArray<FVector> Positions3D;
 	float DensityCoef = 0.0f;
 	float GradientPressureCoef = 0.0f;
 	float LaplacianViscosityCoef = 0.0f;
