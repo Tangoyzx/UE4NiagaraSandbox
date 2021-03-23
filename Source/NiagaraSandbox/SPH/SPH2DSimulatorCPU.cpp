@@ -377,7 +377,6 @@ void ASPH2DSimulatorCPU::ApplyWallPenalty(int32 ParticleIdx)
 void ASPH2DSimulatorCPU::Integrate(int32 ParticleIdx, float DeltaSeconds)
 {
 	Accelerations[ParticleIdx] += FVector2D(0.0f, Gravity);
-	Accelerations[ParticleIdx] += FVector2D(0.0f, Gravity);
 	// 前進オイラー法
 	Velocities[ParticleIdx] += Accelerations[ParticleIdx] * DeltaSeconds;
 	Positions[ParticleIdx] += Velocities[ParticleIdx] * DeltaSeconds;
