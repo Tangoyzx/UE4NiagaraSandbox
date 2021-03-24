@@ -63,24 +63,13 @@ void ASPH3DSimulatorCPU::BeginPlay()
 	FBoxSphereBounds BoxSphere(WallBox.GetCenter(), FVector(InitPosRadius), InitPosRadius);
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
-		Positions[i] = RandPointInSphere(WallBox);
+		Positions[i] = RandPointInSphere(BoxSphere);
 	}
 
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
 		// ボックス内の初期位置に応じてRGBで塗り分ける
-		#if 0
 		Colors[i] = FLinearColor((Positions[i] - WallBox.Min) / WallBox.GetExtent() * 0.5f);
-		#else
-		Colors[i] = FLinearColor(
-			FVector4(
-				(Positions[i].X - WallBox.Min.X) / WallBox.GetExtent().X * 0.5f,
-				(Positions[i].Y - WallBox.Min.Y) / WallBox.GetExtent().Y * 0.5f,
-				0.0f,
-				1.0f
-			)
-		);
-		#endif
 	}
 
 	for (int32 i = 0; i < NumParticles; ++i)
