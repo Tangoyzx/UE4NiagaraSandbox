@@ -35,6 +35,17 @@ namespace
 			ArrayDI->MarkRenderDataDirty();
 		}
 	}
+
+	// UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayColor()ÇéQçlÇ…ÇµÇƒÇ¢ÇÈ
+	void SetNiagaraArrayColor(UNiagaraComponent* NiagaraSystem, FName OverrideName, const TArray<FLinearColor>& ArrayData)
+	{
+		if (UNiagaraDataInterfaceArrayColor* ArrayDI = UNiagaraFunctionLibrary::GetDataInterface<UNiagaraDataInterfaceArrayColor>(NiagaraSystem, OverrideName))
+		{
+			FRWScopeLock WriteLock(ArrayDI->ArrayRWGuard, SLT_Write);
+			ArrayDI->ColorData = ArrayData;
+			ArrayDI->MarkRenderDataDirty();
+		}
+	}
 }
 
 void ASPH3DSimulatorCPU::BeginPlay()
@@ -42,6 +53,7 @@ void ASPH3DSimulatorCPU::BeginPlay()
 	Super::BeginPlay();
 
 	Positions.SetNum(NumParticles);
+	Colors.SetNum(NumParticles);
 	Velocities.SetNum(NumParticles);
 	Accelerations.SetNum(NumParticles);
 	Densities.SetNum(NumParticles);
@@ -52,6 +64,11 @@ void ASPH3DSimulatorCPU::BeginPlay()
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
 		Positions[i] = RandPointInSphere(WallBox);
+	}
+
+	for (int32 i = 0; i < NumParticles; ++i)
+	{
+		Colors[i] = FLinearColor(0.0f, 0.7f, 1.0f, 1.0f);
 	}
 
 	for (int32 i = 0; i < NumParticles; ++i)
@@ -70,6 +87,7 @@ void ASPH3DSimulatorCPU::BeginPlay()
 	//ä‘Ç…çáÇÌÇ»Ç¢ÇÃÇ≈BeginPlay()Ç≈Ç‡ê›íËÇ∑ÇÈ
 	NiagaraComponent->SetNiagaraVariableInt("NumParticles", NumParticles);
 	SetNiagaraArrayVector(NiagaraComponent, FName("Positions"), Positions);
+	SetNiagaraArrayColor(NiagaraComponent, FName("Colors"), Colors);
 
 	DensityCoef = Mass * 4.0f / PI / FMath::Pow(SmoothLength, 8);
 	GradientPressureCoef = Mass * -30.0f / PI / FMath::Pow(SmoothLength, 5);

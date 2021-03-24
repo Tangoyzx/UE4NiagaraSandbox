@@ -116,6 +116,7 @@ private:
 
 private:
 	TArray<FVector> Positions;
+	TArray<FLinearColor> Colors;
 	TArray<FVector> Velocities;
 	// 加速度は毎フレーム計算するのでフレーム間のひきつぎはないのだが、使用メモリやTArrayの生成負荷をおさえるために
 	// 使いまわしている
