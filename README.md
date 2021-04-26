@@ -26,4 +26,5 @@ Dogin both simulation and graphic by Niagara.
 ## SPH_3D_GPU_Demo_Map
 Visualized SPH 3D by SSFR(screen space fluid rendering).
 Doing simulation and SSFR by Niagara.
+The shading model of the material is SingleLayerWater so it needs Water plugin enabled.
 ![SPH_3D_GPU_Demo_Map](SPH_3D_GPU_Demo_PreviewDebug.gif "Visualized SPH 3D")
