@@ -45,10 +45,14 @@ void ASPH2DSimulatorCPU::BeginPlay()
 	Pressures.SetNum(NumParticles);
 	Positions3D.SetNum(NumParticles);
 
+	const FVector& ActorWorldLocation = GetActorLocation();
+	const FVector2D& ActorWorldLocation2D = FVector2D(ActorWorldLocation.Y, ActorWorldLocation.Z);
+	const FQuat& ActorWorldRotation = GetActorQuat();
+
 	// InitPosRadiusîºåaÇÃâ~ì‡Ç…ÉâÉìÉ_ÉÄÇ…îzíu
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
-		Positions[i] = WallBox.GetCenter() + FMath::RandPointInCircle(InitPosRadius);
+		Positions[i] = ActorWorldLocation2D + WallBox.GetCenter() + FMath::RandPointInCircle(InitPosRadius);
 	}
 
 	for (int32 i = 0; i < NumParticles; ++i)
@@ -63,13 +67,13 @@ void ASPH2DSimulatorCPU::BeginPlay()
 
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
-		Positions3D[i] = FVector(0.0f, Positions[i].X, Positions[i].Y);
+		Positions3D[i] = FVector(ActorWorldLocation.X, Positions[i].X, Positions[i].Y);
 	}
 
 	if (bUseNeighborGrid3D)
 	{
-		//TODO: [-WorldBBoxSize / 2, WorldBBoxSize / 2]Ç[0,1]Ç…é ëúÇµÇƒàµÇ§ÅBRotationÇ∆TranslationÇÕÇ»Çµ
-		SimulationToUnitTransform = FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y));
+		//TODO: FTransform(ActorLocation, ActorRotation) * [-WorldBBoxSize / 2, WorldBBoxSize / 2]Ç[0,1]Ç…é ëúÇµÇƒàµÇ§ÅBRotationÇ∆TranslationÇÕÇ»Çµ
+		SimulationToUnitTransform = FTransform(ActorWorldRotation.Inverse(), -ActorWorldLocation + FVector(0.5f), FVector(1.0f) / FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y));
 		NeighborGrid3D.Initialize(FIntVector(1, NumCellsX, NumCellsY), MaxNeighborsPerCell);
 	}
 
@@ -102,9 +106,11 @@ void ASPH2DSimulatorCPU::Tick(float DeltaSeconds)
 		}
 	}
 
+	const FVector& ActorWorldLocation = GetActorLocation();
+
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
-		Positions3D[i] = FVector(0.0f, Positions[i].X, Positions[i].Y);
+		Positions3D[i] = FVector(ActorWorldLocation.X, Positions[i].X, Positions[i].Y);
 	}
 
 	NiagaraComponent->SetNiagaraVariableInt("NumParticles", NumParticles);
@@ -381,15 +387,20 @@ void ASPH2DSimulatorCPU::ApplyViscosity(int32 ParticleIdx, int32 AnotherParticle
 
 void ASPH2DSimulatorCPU::ApplyWallPenalty(int32 ParticleIdx)
 {
+	const float ActorLocationX = GetActorLocation().X;
+	const FVector& RotatedWallBoxMin = GetActorQuat() * FVector(ActorLocationX, WallBox.Min.X, WallBox.Min.Y);
+	const FVector& RotatedWallBoxMax = GetActorQuat() * FVector(ActorLocationX, WallBox.Min.X, WallBox.Min.Y);
+	FBox2D RotatedWallBox(FVector2D(RotatedWallBoxMin.Y, RotatedWallBoxMin.Z), FVector2D(RotatedWallBoxMax.Y, RotatedWallBoxMax.Z));
+
 	//TODO: SPHÇ¡ÇƒåæÇ¡ÇƒÇ‡â¡ë¨ìxégÇÌÇ∏Ç…PBDégÇ¡ÇƒÇ‡Ç¢Ç¢ÇÕÇ∏Ç»ÇÒÇæÇÊÇ»
 	// è„ã´äE
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].Y - WallBox.Max.Y) * WallStiffness * FVector2D(0.0f, -1.0f);
+	Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].Y - RotatedWallBox.Max.Y) * WallStiffness * FVector2D(0.0f, -1.0f);
 	// â∫ã´äE
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, WallBox.Min.Y - Positions[ParticleIdx].Y) * WallStiffness * FVector2D(0.0f, 1.0f);
+	Accelerations[ParticleIdx] += FMath::Max(0.0f, RotatedWallBox.Min.Y - Positions[ParticleIdx].Y) * WallStiffness * FVector2D(0.0f, 1.0f);
 	// ç∂ã´äE
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, WallBox.Min.X - Positions[ParticleIdx].X) * WallStiffness * FVector2D(1.0f, 0.0f);
+	Accelerations[ParticleIdx] += FMath::Max(0.0f, RotatedWallBox.Min.X - Positions[ParticleIdx].X) * WallStiffness * FVector2D(1.0f, 0.0f);
 	// âEã´äE
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].X - WallBox.Max.X) * WallStiffness * FVector2D(-1.0f, 0.0f);
+	Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].X - RotatedWallBox.Max.X) * WallStiffness * FVector2D(-1.0f, 0.0f);
 }
 
 void ASPH2DSimulatorCPU::Integrate(int32 ParticleIdx, float DeltaSeconds)
