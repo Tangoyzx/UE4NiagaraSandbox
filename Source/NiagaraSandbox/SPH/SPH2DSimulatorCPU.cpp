@@ -8,6 +8,14 @@
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraDataInterfaceArrayFloat.h"
 
+static TAutoConsoleVariable<int32> CVarSPHenableActorTrans(
+	TEXT("SPH.enableActorTrans"),
+	0,
+	TEXT("SPH enable Actor Transform.\n")
+	TEXT("0: default\n")
+	TEXT("1: enable Actor Trans"),
+	ECVF_Default);
+
 namespace
 {
 	// UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector()を参考にしている
@@ -67,13 +75,28 @@ void ASPH2DSimulatorCPU::BeginPlay()
 
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
+		if (CVarSPHenableActorTrans.GetValueOnGameThread() == 0)
+		{
+		Positions3D[i] = FVector(0.0f, Positions[i].X, Positions[i].Y);
+		}
+		else
+		{
 		Positions3D[i] = FVector(ActorWorldLocation.X, Positions[i].X, Positions[i].Y);
+		}
 	}
 
 	if (bUseNeighborGrid3D)
 	{
 		//TODO: FTransform(ActorLocation, ActorRotation) * [-WorldBBoxSize / 2, WorldBBoxSize / 2]を[0,1]に写像して扱う。RotationとTranslationはなし
-		SimulationToUnitTransform = FTransform(ActorWorldRotation.Inverse(), -ActorWorldLocation + FVector(0.5f), FVector(1.0f) / FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y));
+		if (CVarSPHenableActorTrans.GetValueOnGameThread() == 0)
+		{
+		SimulationToUnitTransform = FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y));
+		}
+		else
+		{
+		const FTransform& UnitToSimulation = FTransform(FQuat::Identity, FVector(0.0f, 0.5f, 0.5f), FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y)) * FTransform(ActorWorldRotation, ActorWorldLocation);
+		SimulationToUnitTransform = UnitToSimulation.Inverse();
+		}
 		NeighborGrid3D.Initialize(FIntVector(1, NumCellsX, NumCellsY), MaxNeighborsPerCell);
 	}
 
@@ -110,7 +133,14 @@ void ASPH2DSimulatorCPU::Tick(float DeltaSeconds)
 
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
+		if (CVarSPHenableActorTrans.GetValueOnGameThread() == 0)
+		{
+		Positions3D[i] = FVector(0.0f, Positions[i].X, Positions[i].Y);
+		}
+		else
+		{
 		Positions3D[i] = FVector(ActorWorldLocation.X, Positions[i].X, Positions[i].Y);
+		}
 	}
 
 	NiagaraComponent->SetNiagaraVariableInt("NumParticles", NumParticles);
@@ -387,20 +417,41 @@ void ASPH2DSimulatorCPU::ApplyViscosity(int32 ParticleIdx, int32 AnotherParticle
 
 void ASPH2DSimulatorCPU::ApplyWallPenalty(int32 ParticleIdx)
 {
-	const float ActorLocationX = GetActorLocation().X;
-	const FVector& RotatedWallBoxMin = GetActorQuat() * FVector(ActorLocationX, WallBox.Min.X, WallBox.Min.Y);
-	const FVector& RotatedWallBoxMax = GetActorQuat() * FVector(ActorLocationX, WallBox.Min.X, WallBox.Min.Y);
-	FBox2D RotatedWallBox(FVector2D(RotatedWallBoxMin.Y, RotatedWallBoxMin.Z), FVector2D(RotatedWallBoxMax.Y, RotatedWallBoxMax.Z));
+	if (CVarSPHenableActorTrans.GetValueOnAnyThread() == 0)
+	{
+	// 計算が楽なので、アクタの位置移動と回転を戻した座標系でパーティクル位置を扱う
+	const FVector& Position3D = FVector(GetActorLocation().X, Positions[ParticleIdx].X, Positions[ParticleIdx].Y);
+	const FVector& InvRotPos = GetActorTransform().InverseTransformPositionNoScale(Position3D);
 
 	//TODO: SPHって言っても加速度使わずにPBD使ってもいいはずなんだよな
 	// 上境界
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].Y - RotatedWallBox.Max.Y) * WallStiffness * FVector2D(0.0f, -1.0f);
+	FVector TopAccel = FMath::Max(0.0f, InvRotPos.Z - WallBox.Max.Y) * WallStiffness * FVector(0.0f, 0.0f, -1.0f);
+	TopAccel = GetActorTransform().TransformVectorNoScale(TopAccel);
+	Accelerations[ParticleIdx] += FVector2D(TopAccel.Y, TopAccel.Z);
 	// 下境界
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, RotatedWallBox.Min.Y - Positions[ParticleIdx].Y) * WallStiffness * FVector2D(0.0f, 1.0f);
+	FVector BottomAccel = FMath::Max(0.0f, WallBox.Min.Y - InvRotPos.Z) * WallStiffness * FVector(0.0f, 0.0f, 1.0f);
+	BottomAccel = GetActorTransform().TransformVectorNoScale(BottomAccel);
+	Accelerations[ParticleIdx] += FVector2D(BottomAccel.Y, BottomAccel.Z);
 	// 左境界
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, RotatedWallBox.Min.X - Positions[ParticleIdx].X) * WallStiffness * FVector2D(1.0f, 0.0f);
+	FVector LeftAccel = FMath::Max(0.0f, WallBox.Min.X - InvRotPos.Y) * WallStiffness * FVector(0.0f, 1.0f, 0.0f);
+	LeftAccel = GetActorTransform().TransformVectorNoScale(LeftAccel);
+	Accelerations[ParticleIdx] += FVector2D(LeftAccel.Y, LeftAccel.Z);
 	// 右境界
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].X - RotatedWallBox.Max.X) * WallStiffness * FVector2D(-1.0f, 0.0f);
+	FVector RightAccel = FMath::Max(0.0f, InvRotPos.Y - WallBox.Max.X) * WallStiffness * FVector(0.0f, -1.0f, 0.0f);
+	RightAccel = GetActorTransform().TransformVectorNoScale(RightAccel);
+	Accelerations[ParticleIdx] += FVector2D(RightAccel.Y, RightAccel.Z);
+	}
+	else
+	{
+	// 上境界
+	Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].Y - WallBox.Max.Y) * WallStiffness * FVector2D(0.0f, -1.0f);
+	// 下境界
+	Accelerations[ParticleIdx] += FMath::Max(0.0f, WallBox.Min.Y - Positions[ParticleIdx].Y) * WallStiffness * FVector2D(0.0f, 1.0f);
+	// 左境界
+	Accelerations[ParticleIdx] += FMath::Max(0.0f, WallBox.Min.X - Positions[ParticleIdx].X) * WallStiffness * FVector2D(1.0f, 0.0f);
+	// 右境界
+	Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].X - WallBox.Max.X) * WallStiffness * FVector2D(-1.0f, 0.0f);
+	}
 }
 
 void ASPH2DSimulatorCPU::Integrate(int32 ParticleIdx, float DeltaSeconds)
