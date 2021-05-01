@@ -55,7 +55,6 @@ void ASPH2DSimulatorCPU::BeginPlay()
 
 	const FVector& ActorWorldLocation = GetActorLocation();
 	const FVector2D& ActorWorldLocation2D = FVector2D(ActorWorldLocation.Y, ActorWorldLocation.Z);
-	const FQuat& ActorWorldRotation = GetActorQuat();
 
 	// InitPosRadius”¼Œa‚Ì‰~“à‚Éƒ‰ƒ“ƒ_ƒ€‚É”z’u
 	for (int32 i = 0; i < NumParticles; ++i)
@@ -94,8 +93,9 @@ void ASPH2DSimulatorCPU::BeginPlay()
 		}
 		else
 		{
-		const FTransform& UnitToSimulation = FTransform(FQuat::Identity, FVector(0.0f, 0.5f, 0.5f), FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y)) * FTransform(ActorWorldRotation, ActorWorldLocation);
-		SimulationToUnitTransform = UnitToSimulation.Inverse();
+		//const FTransform& UnitToSimulation = FTransform(FQuat::Identity, FVector(-0.5f), FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y)) * GetActorTransform();
+		//SimulationToUnitTransform = UnitToSimulation.Inverse();
+		SimulationToUnitTransform = GetActorTransform().Inverse() * FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y));
 		}
 		NeighborGrid3D.Initialize(FIntVector(1, NumCellsX, NumCellsY), MaxNeighborsPerCell);
 	}
