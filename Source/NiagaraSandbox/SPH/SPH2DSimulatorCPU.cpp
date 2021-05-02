@@ -93,10 +93,7 @@ void ASPH2DSimulatorCPU::BeginPlay()
 		}
 		else
 		{
-		//const FTransform& UnitToSimulation = FTransform(FQuat::Identity, FVector(-0.5f), FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y)) * GetActorTransform();
-		//SimulationToUnitTransform = UnitToSimulation.Inverse();
 		SimulationToUnitTransform = GetActorTransform().Inverse() * FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y));
-		//SimulationToUnitTransform = FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y)) * GetActorTransform().Inverse() * ;
 		}
 		NeighborGrid3D.Initialize(FIntVector(1, NumCellsX, NumCellsY), MaxNeighborsPerCell);
 	}
@@ -420,6 +417,17 @@ void ASPH2DSimulatorCPU::ApplyWallPenalty(int32 ParticleIdx)
 {
 	if (CVarSPHenableActorTrans.GetValueOnAnyThread() == 0)
 	{
+	// 上境界
+	Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].Y - WallBox.Max.Y) * WallStiffness * FVector2D(0.0f, -1.0f);
+	// 下境界
+	Accelerations[ParticleIdx] += FMath::Max(0.0f, WallBox.Min.Y - Positions[ParticleIdx].Y) * WallStiffness * FVector2D(0.0f, 1.0f);
+	// 左境界
+	Accelerations[ParticleIdx] += FMath::Max(0.0f, WallBox.Min.X - Positions[ParticleIdx].X) * WallStiffness * FVector2D(1.0f, 0.0f);
+	// 右境界
+	Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].X - WallBox.Max.X) * WallStiffness * FVector2D(-1.0f, 0.0f);
+	}
+	else
+	{
 	// 計算が楽なので、アクタの位置移動と回転を戻した座標系でパーティクル位置を扱う
 	const FVector& Position3D = FVector(GetActorLocation().X, Positions[ParticleIdx].X, Positions[ParticleIdx].Y);
 	const FVector& InvRotPos = GetActorTransform().InverseTransformPositionNoScale(Position3D);
@@ -441,17 +449,6 @@ void ASPH2DSimulatorCPU::ApplyWallPenalty(int32 ParticleIdx)
 	FVector RightAccel = FMath::Max(0.0f, InvRotPos.Y - WallBox.Max.X) * WallStiffness * FVector(0.0f, -1.0f, 0.0f);
 	RightAccel = GetActorTransform().TransformVectorNoScale(RightAccel);
 	Accelerations[ParticleIdx] += FVector2D(RightAccel.Y, RightAccel.Z);
-	}
-	else
-	{
-	// 上境界
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].Y - WallBox.Max.Y) * WallStiffness * FVector2D(0.0f, -1.0f);
-	// 下境界
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, WallBox.Min.Y - Positions[ParticleIdx].Y) * WallStiffness * FVector2D(0.0f, 1.0f);
-	// 左境界
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, WallBox.Min.X - Positions[ParticleIdx].X) * WallStiffness * FVector2D(1.0f, 0.0f);
-	// 右境界
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].X - WallBox.Max.X) * WallStiffness * FVector2D(-1.0f, 0.0f);
 	}
 }
 
