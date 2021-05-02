@@ -8,14 +8,6 @@
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraDataInterfaceArrayFloat.h"
 
-static TAutoConsoleVariable<int32> CVarSPHenableActorTrans(
-	TEXT("SPH.enableActorTrans"),
-	1,
-	TEXT("SPH enable Actor Transform.\n")
-	TEXT("0: default\n")
-	TEXT("1: enable Actor Trans"),
-	ECVF_Default);
-
 namespace
 {
 	// UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector()を参考にしている
@@ -74,14 +66,7 @@ void ASPH2DSimulatorCPU::BeginPlay()
 
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
-		if (CVarSPHenableActorTrans.GetValueOnGameThread() == 0)
-		{
-		Positions3D[i] = FVector(0.0f, Positions[i].X, Positions[i].Y);
-		}
-		else
-		{
 		Positions3D[i] = FVector(ActorWorldLocation.X, Positions[i].X, Positions[i].Y);
-		}
 	}
 
 	if (bUseNeighborGrid3D)
@@ -111,27 +96,13 @@ void ASPH2DSimulatorCPU::Tick(float DeltaSeconds)
 	const FVector& ActorWorldLocation = GetActorLocation();
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
-		if (CVarSPHenableActorTrans.GetValueOnGameThread() == 0)
-		{
-		Positions3D[i] = FVector(0.0f, Positions[i].X, Positions[i].Y);
-		}
-		else
-		{
 		Positions3D[i] = FVector(ActorWorldLocation.X, Positions[i].X, Positions[i].Y);
-		}
 	}
 
 	if (bUseNeighborGrid3D)
 	{
 		//[-WorldBBoxSize / 2, WorldBBoxSize / 2]を[0,1]に写像して扱う
-		if (CVarSPHenableActorTrans.GetValueOnGameThread() == 0)
-		{
 		SimulationToUnitTransform = FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y));
-		}
-		else
-		{
-		SimulationToUnitTransform = FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y));
-		}
 	}
 
 	if (DeltaSeconds > KINDA_SMALL_NUMBER)
@@ -147,14 +118,7 @@ void ASPH2DSimulatorCPU::Tick(float DeltaSeconds)
 
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
-		if (CVarSPHenableActorTrans.GetValueOnGameThread() == 0)
-		{
-		Positions3D[i] = FVector(0.0f, Positions[i].X, Positions[i].Y);
-		}
-		else
-		{
 		Positions3D[i] = FVector(ActorWorldLocation.X, Positions[i].X, Positions[i].Y);
-		}
 	}
 
 	NiagaraComponent->SetNiagaraVariableInt("NumParticles", NumParticles);
@@ -431,19 +395,6 @@ void ASPH2DSimulatorCPU::ApplyViscosity(int32 ParticleIdx, int32 AnotherParticle
 
 void ASPH2DSimulatorCPU::ApplyWallPenalty(int32 ParticleIdx)
 {
-	if (CVarSPHenableActorTrans.GetValueOnAnyThread() == 0)
-	{
-	// 上境界
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].Y - WallBox.Max.Y) * WallStiffness * FVector2D(0.0f, -1.0f);
-	// 下境界
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, WallBox.Min.Y - Positions[ParticleIdx].Y) * WallStiffness * FVector2D(0.0f, 1.0f);
-	// 左境界
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, WallBox.Min.X - Positions[ParticleIdx].X) * WallStiffness * FVector2D(1.0f, 0.0f);
-	// 右境界
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].X - WallBox.Max.X) * WallStiffness * FVector2D(-1.0f, 0.0f);
-	}
-	else
-	{
 	// 計算が楽なので、アクタの位置移動と回転を戻した座標系でパーティクル位置を扱う
 	const FVector& Position3D = FVector(GetActorLocation().X, Positions[ParticleIdx].X, Positions[ParticleIdx].Y);
 	const FVector& InvActorMovePos = GetActorTransform().InverseTransformPositionNoScale(Position3D);
@@ -465,7 +416,6 @@ void ASPH2DSimulatorCPU::ApplyWallPenalty(int32 ParticleIdx)
 	FVector RightAccel = FMath::Max(0.0f, InvActorMovePos.Y - WallBox.Max.X) * WallStiffness * FVector(0.0f, -1.0f, 0.0f);
 	RightAccel = GetActorTransform().TransformVectorNoScale(RightAccel);
 	Accelerations[ParticleIdx] += FVector2D(RightAccel.Y, RightAccel.Z);
-	}
 }
 
 void ASPH2DSimulatorCPU::Integrate(int32 ParticleIdx, float DeltaSeconds)
