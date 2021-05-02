@@ -63,13 +63,13 @@ void ASPH3DSimulatorCPU::BeginPlay()
 	FBoxSphereBounds BoxSphere(WallBox.GetCenter(), FVector(InitPosRadius), InitPosRadius);
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
-		Positions[i] = RandPointInSphere(BoxSphere);
+		Positions[i] = GetActorLocation() + RandPointInSphere(BoxSphere);
 	}
 
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
 		// ボックス内の初期位置に応じてRGBで塗り分ける
-		Colors[i] = FLinearColor((Positions[i] - WallBox.Min) / WallBox.GetExtent() * 0.5f);
+		Colors[i] = FLinearColor((Positions[i] - GetActorLocation() - WallBox.Min) / WallBox.GetExtent() * 0.5f);
 	}
 
 	for (int32 i = 0; i < NumParticles; ++i)
@@ -79,8 +79,6 @@ void ASPH3DSimulatorCPU::BeginPlay()
 
 	if (bUseNeighborGrid3D)
 	{
-		//TODO: [-WorldBBoxSize / 2, WorldBBoxSize / 2]を[0,1]に写像して扱う。RotationとTranslationはなし
-		SimulationToUnitTransform = FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / WorldBBoxSize);
 		NeighborGrid3D.Initialize(FIntVector(NumCellsX, NumCellsY, NumCellsZ), MaxNeighborsPerCell);
 	}
 
@@ -101,6 +99,12 @@ void ASPH3DSimulatorCPU::BeginPlay()
 void ASPH3DSimulatorCPU::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+
+	if (bUseNeighborGrid3D)
+	{
+		//FTransform(ActorLocation, ActorRotation) * [-WorldBBoxSize / 2, WorldBBoxSize / 2]を[0,1]に写像して扱う
+		SimulationToUnitTransform = GetActorTransform().Inverse() * FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / WorldBBoxSize);
+	}
 
 	if (DeltaSeconds > KINDA_SMALL_NUMBER)
 	{
@@ -427,19 +431,28 @@ void ASPH3DSimulatorCPU::ApplyViscosity(int32 ParticleIdx, int32 AnotherParticle
 
 void ASPH3DSimulatorCPU::ApplyWallPenalty(int32 ParticleIdx)
 {
+	// 計算が楽なので、アクタの位置移動と回転を戻した座標系でパーティクル位置を扱う
+	const FVector& InvActorMovePos = GetActorTransform().InverseTransformPositionNoScale(Positions[ParticleIdx]);
+
 	//TODO: SPHって言っても加速度使わずにPBD使ってもいいはずなんだよな
 	// 上境界
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].Z - WallBox.Max.Z) * WallStiffness * FVector(0.0f, 0.0f, -1.0f);
+	const FVector& TopAccel = FMath::Max(0.0f, InvActorMovePos.Z - WallBox.Max.Z) * WallStiffness * FVector(0.0f, 0.0f, -1.0f);
+	Accelerations[ParticleIdx] += GetActorTransform().TransformVectorNoScale(TopAccel);
 	// 下境界
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, WallBox.Min.Z - Positions[ParticleIdx].Z) * WallStiffness * FVector(0.0f, 0.0f, 1.0f);
+	const FVector& BottomAccel = FMath::Max(0.0f, WallBox.Min.Z - InvActorMovePos.Z) * WallStiffness * FVector(0.0f, 0.0f, 1.0f);
+	Accelerations[ParticleIdx] += GetActorTransform().TransformVectorNoScale(BottomAccel);
 	// 左境界
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, WallBox.Min.X - Positions[ParticleIdx].X) * WallStiffness * FVector(1.0f, 0.0f, 0.0f);
+	const FVector& LeftAccel = FMath::Max(0.0f, WallBox.Min.X - InvActorMovePos.X) * WallStiffness * FVector(1.0f, 0.0f, 0.0f);
+	Accelerations[ParticleIdx] += GetActorTransform().TransformVectorNoScale(LeftAccel);
 	// 右境界
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].X - WallBox.Max.X) * WallStiffness * FVector(-1.0f, 0.0f, 0.0f);
+	const FVector& RightAccel = FMath::Max(0.0f, InvActorMovePos.X - WallBox.Max.X) * WallStiffness * FVector(-1.0f, 0.0f, 0.0f);
+	Accelerations[ParticleIdx] += GetActorTransform().TransformVectorNoScale(RightAccel);
 	// 奥境界
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, WallBox.Min.Y - Positions[ParticleIdx].Y) * WallStiffness * FVector(0.0f, 1.0f, 0.0f);
+	const FVector& BackAccel = FMath::Max(0.0f, WallBox.Min.Y - InvActorMovePos.Y) * WallStiffness * FVector(0.0f, 1.0f, 0.0f);
+	Accelerations[ParticleIdx] += GetActorTransform().TransformVectorNoScale(BackAccel);
 	// 手前境界
-	Accelerations[ParticleIdx] += FMath::Max(0.0f, Positions[ParticleIdx].Y - WallBox.Max.Y) * WallStiffness * FVector(0.0f, -1.0f, 0.0f);
+	const FVector& FrontAccel = FMath::Max(0.0f, InvActorMovePos.Y - WallBox.Max.Y) * WallStiffness * FVector(0.0f, -1.0f, 0.0f);
+	Accelerations[ParticleIdx] += GetActorTransform().TransformVectorNoScale(FrontAccel);
 }
 
 void ASPH3DSimulatorCPU::Integrate(int32 ParticleIdx, float DeltaSeconds)

@@ -123,7 +123,7 @@ void ASPH2DSimulatorCPU::Tick(float DeltaSeconds)
 
 	if (bUseNeighborGrid3D)
 	{
-		//TODO: FTransform(ActorLocation, ActorRotation) * [-WorldBBoxSize / 2, WorldBBoxSize / 2]を[0,1]に写像して扱う。RotationとTranslationはなし
+		//FTransform(ActorLocation, ActorRotation) * [-WorldBBoxSize / 2, WorldBBoxSize / 2]を[0,1]に写像して扱う
 		if (CVarSPHenableActorTrans.GetValueOnGameThread() == 0)
 		{
 		SimulationToUnitTransform = FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y));
@@ -446,23 +446,23 @@ void ASPH2DSimulatorCPU::ApplyWallPenalty(int32 ParticleIdx)
 	{
 	// 計算が楽なので、アクタの位置移動と回転を戻した座標系でパーティクル位置を扱う
 	const FVector& Position3D = FVector(GetActorLocation().X, Positions[ParticleIdx].X, Positions[ParticleIdx].Y);
-	const FVector& InvRotPos = GetActorTransform().InverseTransformPositionNoScale(Position3D);
+	const FVector& InvActorMovePos = GetActorTransform().InverseTransformPositionNoScale(Position3D);
 
 	//TODO: SPHって言っても加速度使わずにPBD使ってもいいはずなんだよな
 	// 上境界
-	FVector TopAccel = FMath::Max(0.0f, InvRotPos.Z - WallBox.Max.Y) * WallStiffness * FVector(0.0f, 0.0f, -1.0f);
+	FVector TopAccel = FMath::Max(0.0f, InvActorMovePos.Z - WallBox.Max.Y) * WallStiffness * FVector(0.0f, 0.0f, -1.0f);
 	TopAccel = GetActorTransform().TransformVectorNoScale(TopAccel);
 	Accelerations[ParticleIdx] += FVector2D(TopAccel.Y, TopAccel.Z);
 	// 下境界
-	FVector BottomAccel = FMath::Max(0.0f, WallBox.Min.Y - InvRotPos.Z) * WallStiffness * FVector(0.0f, 0.0f, 1.0f);
+	FVector BottomAccel = FMath::Max(0.0f, WallBox.Min.Y - InvActorMovePos.Z) * WallStiffness * FVector(0.0f, 0.0f, 1.0f);
 	BottomAccel = GetActorTransform().TransformVectorNoScale(BottomAccel);
 	Accelerations[ParticleIdx] += FVector2D(BottomAccel.Y, BottomAccel.Z);
 	// 左境界
-	FVector LeftAccel = FMath::Max(0.0f, WallBox.Min.X - InvRotPos.Y) * WallStiffness * FVector(0.0f, 1.0f, 0.0f);
+	FVector LeftAccel = FMath::Max(0.0f, WallBox.Min.X - InvActorMovePos.Y) * WallStiffness * FVector(0.0f, 1.0f, 0.0f);
 	LeftAccel = GetActorTransform().TransformVectorNoScale(LeftAccel);
 	Accelerations[ParticleIdx] += FVector2D(LeftAccel.Y, LeftAccel.Z);
 	// 右境界
-	FVector RightAccel = FMath::Max(0.0f, InvRotPos.Y - WallBox.Max.X) * WallStiffness * FVector(0.0f, -1.0f, 0.0f);
+	FVector RightAccel = FMath::Max(0.0f, InvActorMovePos.Y - WallBox.Max.X) * WallStiffness * FVector(0.0f, -1.0f, 0.0f);
 	RightAccel = GetActorTransform().TransformVectorNoScale(RightAccel);
 	Accelerations[ParticleIdx] += FVector2D(RightAccel.Y, RightAccel.Z);
 	}
