@@ -10,7 +10,7 @@
 
 static TAutoConsoleVariable<int32> CVarSPHenableActorTrans(
 	TEXT("SPH.enableActorTrans"),
-	0,
+	1,
 	TEXT("SPH enable Actor Transform.\n")
 	TEXT("0: default\n")
 	TEXT("1: enable Actor Trans"),
@@ -96,6 +96,7 @@ void ASPH2DSimulatorCPU::BeginPlay()
 		//const FTransform& UnitToSimulation = FTransform(FQuat::Identity, FVector(-0.5f), FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y)) * GetActorTransform();
 		//SimulationToUnitTransform = UnitToSimulation.Inverse();
 		SimulationToUnitTransform = GetActorTransform().Inverse() * FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y));
+		//SimulationToUnitTransform = FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y)) * GetActorTransform().Inverse() * ;
 		}
 		NeighborGrid3D.Initialize(FIntVector(1, NumCellsX, NumCellsY), MaxNeighborsPerCell);
 	}
