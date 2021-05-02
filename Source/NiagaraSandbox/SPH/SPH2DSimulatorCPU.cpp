@@ -123,14 +123,14 @@ void ASPH2DSimulatorCPU::Tick(float DeltaSeconds)
 
 	if (bUseNeighborGrid3D)
 	{
-		//FTransform(ActorLocation, ActorRotation) * [-WorldBBoxSize / 2, WorldBBoxSize / 2]‚ð[0,1]‚ÉŽÊ‘œ‚µ‚Äˆµ‚¤
+		//[-WorldBBoxSize / 2, WorldBBoxSize / 2]‚ð[0,1]‚ÉŽÊ‘œ‚µ‚Äˆµ‚¤
 		if (CVarSPHenableActorTrans.GetValueOnGameThread() == 0)
 		{
 		SimulationToUnitTransform = FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y));
 		}
 		else
 		{
-		SimulationToUnitTransform = GetActorTransform().Inverse() * FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y));
+		SimulationToUnitTransform = FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y));
 		}
 	}
 
@@ -179,7 +179,7 @@ void ASPH2DSimulatorCPU::Simulate(float DeltaSeconds)
 			{
 				for (int32 ParticleIdx = NumThreadParticles * ThreadIndex; ParticleIdx < NumThreadParticles * (ThreadIndex + 1) && ParticleIdx < NumParticles; ++ParticleIdx)
 				{
-					const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(Positions3D[ParticleIdx], SimulationToUnitTransform);
+					const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(GetActorTransform().InverseTransformPositionNoScale(Positions3D[ParticleIdx]), SimulationToUnitTransform);
 					const FIntVector& CellIndex = NeighborGrid3D.UnitToIndex(UnitPos);
 					if (NeighborGrid3D.IsValidCellIndex(CellIndex))
 					{
