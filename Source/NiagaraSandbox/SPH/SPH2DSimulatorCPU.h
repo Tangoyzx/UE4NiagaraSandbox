@@ -6,7 +6,7 @@
 #include "../Common/NeighborGrid3DCPU.h"
 #include "SPH2DSimulatorCPU.generated.h"
 
-UCLASS()
+UCLASS(MinimalAPI)
 // ANiagaraActor‚ğQl‚É‚µ‚Ä‚¢‚é
 class ASPH2DSimulatorCPU : public AActor
 {
