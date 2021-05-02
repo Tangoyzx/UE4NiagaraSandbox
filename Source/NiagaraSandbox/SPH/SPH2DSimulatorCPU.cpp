@@ -86,15 +86,6 @@ void ASPH2DSimulatorCPU::BeginPlay()
 
 	if (bUseNeighborGrid3D)
 	{
-		//TODO: FTransform(ActorLocation, ActorRotation) * [-WorldBBoxSize / 2, WorldBBoxSize / 2]を[0,1]に写像して扱う。RotationとTranslationはなし
-		if (CVarSPHenableActorTrans.GetValueOnGameThread() == 0)
-		{
-		SimulationToUnitTransform = FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y));
-		}
-		else
-		{
-		SimulationToUnitTransform = GetActorTransform().Inverse() * FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y));
-		}
 		NeighborGrid3D.Initialize(FIntVector(1, NumCellsX, NumCellsY), MaxNeighborsPerCell);
 	}
 
@@ -116,6 +107,33 @@ void ASPH2DSimulatorCPU::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
+	// アクタ位置の動的な変更に対応し、NeighborGrid3Dへの登録に必要なPostions3DとSimulationToUnitTransformを更新しておく
+	const FVector& ActorWorldLocation = GetActorLocation();
+	for (int32 i = 0; i < NumParticles; ++i)
+	{
+		if (CVarSPHenableActorTrans.GetValueOnGameThread() == 0)
+		{
+		Positions3D[i] = FVector(0.0f, Positions[i].X, Positions[i].Y);
+		}
+		else
+		{
+		Positions3D[i] = FVector(ActorWorldLocation.X, Positions[i].X, Positions[i].Y);
+		}
+	}
+
+	if (bUseNeighborGrid3D)
+	{
+		//TODO: FTransform(ActorLocation, ActorRotation) * [-WorldBBoxSize / 2, WorldBBoxSize / 2]を[0,1]に写像して扱う。RotationとTranslationはなし
+		if (CVarSPHenableActorTrans.GetValueOnGameThread() == 0)
+		{
+		SimulationToUnitTransform = FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y));
+		}
+		else
+		{
+		SimulationToUnitTransform = GetActorTransform().Inverse() * FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y));
+		}
+	}
+
 	if (DeltaSeconds > KINDA_SMALL_NUMBER)
 	{
 		// DeltaSecondsの値の変動に関わらず、シミュレーションに使うサブステップタイムは固定とする
@@ -126,8 +144,6 @@ void ASPH2DSimulatorCPU::Tick(float DeltaSeconds)
 			Simulate(SubStepDeltaSeconds);
 		}
 	}
-
-	const FVector& ActorWorldLocation = GetActorLocation();
 
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
