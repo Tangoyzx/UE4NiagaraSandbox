@@ -127,7 +127,7 @@ private:
 	float SmoothLenSq = 0.0f;
 	int32 NumThreadParticles = 0.0f;
 	FNeighborGrid3DCPU NeighborGrid3D;
-	FTransform SimulationToUnitTransform;
+	FTransform LocalToUnitTransform;
 
 public:
 	/** Returns NiagaraComponent subobject **/

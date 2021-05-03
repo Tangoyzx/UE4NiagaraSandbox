@@ -92,7 +92,7 @@ void ASPH2DSimulatorCPU::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	// アクタ位置の動的な変更に対応し、NeighborGrid3Dへの登録に必要なPostions3DとSimulationToUnitTransformを更新しておく
+	// アクタ位置の動的な変更に対応し、NeighborGrid3Dへの登録に必要なPostions3DとLocalToUnitTransformを更新しておく
 	const FVector& ActorWorldLocation = GetActorLocation();
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
@@ -102,7 +102,7 @@ void ASPH2DSimulatorCPU::Tick(float DeltaSeconds)
 	if (bUseNeighborGrid3D)
 	{
 		//[-WorldBBoxSize / 2, WorldBBoxSize / 2]を[0,1]に写像して扱う
-		SimulationToUnitTransform = FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y));
+		LocalToUnitTransform = FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / FVector(1.0f, WorldBBoxSize.X, WorldBBoxSize.Y));
 	}
 
 	if (DeltaSeconds > KINDA_SMALL_NUMBER)
@@ -143,7 +143,7 @@ void ASPH2DSimulatorCPU::Simulate(float DeltaSeconds)
 			{
 				for (int32 ParticleIdx = NumThreadParticles * ThreadIndex; ParticleIdx < NumThreadParticles * (ThreadIndex + 1) && ParticleIdx < NumParticles; ++ParticleIdx)
 				{
-					const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(GetActorTransform().InverseTransformPositionNoScale(Positions3D[ParticleIdx]), SimulationToUnitTransform);
+					const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(GetActorTransform().InverseTransformPositionNoScale(Positions3D[ParticleIdx]), LocalToUnitTransform);
 					const FIntVector& CellIndex = NeighborGrid3D.UnitToIndex(UnitPos);
 					if (NeighborGrid3D.IsValidCellIndex(CellIndex))
 					{
@@ -176,7 +176,7 @@ void ASPH2DSimulatorCPU::Simulate(float DeltaSeconds)
 				for (int32 ParticleIdx = NumThreadParticles * ThreadIndex; ParticleIdx < NumThreadParticles * (ThreadIndex + 1) && ParticleIdx < NumParticles; ++ParticleIdx)
 				{
 					// キャッシュするほどのものでもないのでNeighborGrid3D構築のときと同じ計算をしているのは許容する
-					const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(Positions3D[ParticleIdx], SimulationToUnitTransform);
+					const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(GetActorTransform().InverseTransformPositionNoScale(Positions3D[ParticleIdx]), LocalToUnitTransform);
 					const FIntVector& CellIndex = NeighborGrid3D.UnitToIndex(UnitPos);
 
 					if (!NeighborGrid3D.IsValidCellIndex(CellIndex))
@@ -230,7 +230,7 @@ void ASPH2DSimulatorCPU::Simulate(float DeltaSeconds)
 				for (int32 ParticleIdx = NumThreadParticles * ThreadIndex; ParticleIdx < NumThreadParticles * (ThreadIndex + 1) && ParticleIdx < NumParticles; ++ParticleIdx)
 				{
 					// キャッシュするほどのものでもないのでNeighborGrid3D構築のときと同じ計算をしているのは許容する
-					const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(Positions3D[ParticleIdx], SimulationToUnitTransform);
+					const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(GetActorTransform().InverseTransformPositionNoScale(Positions3D[ParticleIdx]), LocalToUnitTransform);
 					const FIntVector& CellIndex = NeighborGrid3D.UnitToIndex(UnitPos);
 
 					if (!NeighborGrid3D.IsValidCellIndex(CellIndex))

@@ -103,7 +103,7 @@ void ASPH3DSimulatorCPU::Tick(float DeltaSeconds)
 	if (bUseNeighborGrid3D)
 	{
 		//[-WorldBBoxSize / 2, WorldBBoxSize / 2]を[0,1]に写像して扱う
-		SimulationToUnitTransform = FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / WorldBBoxSize);
+		LocalToUnitTransform = FTransform(FQuat::Identity, FVector(0.5f), FVector(1.0f) / WorldBBoxSize);
 	}
 
 	if (DeltaSeconds > KINDA_SMALL_NUMBER)
@@ -139,7 +139,7 @@ void ASPH3DSimulatorCPU::Simulate(float DeltaSeconds)
 			{
 				for (int32 ParticleIdx = NumThreadParticles * ThreadIndex; ParticleIdx < NumThreadParticles * (ThreadIndex + 1) && ParticleIdx < NumParticles; ++ParticleIdx)
 				{
-					const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(GetActorTransform().InverseTransformPositionNoScale(Positions[ParticleIdx]), SimulationToUnitTransform);
+					const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(GetActorTransform().InverseTransformPositionNoScale(Positions[ParticleIdx]), LocalToUnitTransform);
 					const FIntVector& CellIndex = NeighborGrid3D.UnitToIndex(UnitPos);
 					if (NeighborGrid3D.IsValidCellIndex(CellIndex))
 					{
@@ -172,7 +172,7 @@ void ASPH3DSimulatorCPU::Simulate(float DeltaSeconds)
 				for (int32 ParticleIdx = NumThreadParticles * ThreadIndex; ParticleIdx < NumThreadParticles * (ThreadIndex + 1) && ParticleIdx < NumParticles; ++ParticleIdx)
 				{
 					// キャッシュするほどのものでもないのでNeighborGrid3D構築のときと同じ計算をしているのは許容する
-					const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(Positions[ParticleIdx], SimulationToUnitTransform);
+					const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(GetActorTransform().InverseTransformPositionNoScale(Positions[ParticleIdx]), LocalToUnitTransform);
 					const FIntVector& CellIndex = NeighborGrid3D.UnitToIndex(UnitPos);
 
 					if (!NeighborGrid3D.IsValidCellIndex(CellIndex))
@@ -246,7 +246,7 @@ void ASPH3DSimulatorCPU::Simulate(float DeltaSeconds)
 				for (int32 ParticleIdx = NumThreadParticles * ThreadIndex; ParticleIdx < NumThreadParticles * (ThreadIndex + 1) && ParticleIdx < NumParticles; ++ParticleIdx)
 				{
 					// キャッシュするほどのものでもないのでNeighborGrid3D構築のときと同じ計算をしているのは許容する
-					const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(Positions[ParticleIdx], SimulationToUnitTransform);
+					const FVector& UnitPos = NeighborGrid3D.SimulationToUnit(GetActorTransform().InverseTransformPositionNoScale(Positions[ParticleIdx]), LocalToUnitTransform);
 					const FIntVector& CellIndex = NeighborGrid3D.UnitToIndex(UnitPos);
 
 					if (!NeighborGrid3D.IsValidCellIndex(CellIndex))
