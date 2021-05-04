@@ -38,6 +38,7 @@ void ASPH2DSimulatorCPU::BeginPlay()
 	Super::BeginPlay();
 
 	Positions.SetNum(NumParticles);
+	PrevPositions.SetNum(NumParticles);
 	Colors.SetNum(NumParticles);
 	Velocities.SetNum(NumParticles);
 	Accelerations.SetNum(NumParticles);
@@ -52,6 +53,7 @@ void ASPH2DSimulatorCPU::BeginPlay()
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
 		Positions[i] = ActorWorldLocation2D + WallBox.GetCenter() + FMath::RandPointInCircle(InitPosRadius);
+		PrevPositions[i] = Positions[i];
 	}
 
 	for (int32 i = 0; i < NumParticles; ++i)
@@ -269,7 +271,7 @@ void ASPH2DSimulatorCPU::Simulate(float DeltaSeconds)
 							}
 
 							ApplyPressure(ParticleIdx, AnotherParticleIdx);
-							ApplyViscosity(ParticleIdx, AnotherParticleIdx);
+							ApplyViscosity(ParticleIdx, AnotherParticleIdx, DeltaSeconds);
 						}
 					}
 
@@ -315,7 +317,7 @@ void ASPH2DSimulatorCPU::Simulate(float DeltaSeconds)
 						}
 
 						ApplyPressure(ParticleIdx, AnotherParticleIdx);
-						ApplyViscosity(ParticleIdx, AnotherParticleIdx);
+						ApplyViscosity(ParticleIdx, AnotherParticleIdx, DeltaSeconds);
 					}
 
 					ApplyWallPenalty(ParticleIdx);
@@ -373,7 +375,7 @@ void ASPH2DSimulatorCPU::ApplyPressure(int32 ParticleIdx, int32 AnotherParticleI
 	}
 }
 
-void ASPH2DSimulatorCPU::ApplyViscosity(int32 ParticleIdx, int32 AnotherParticleIdx)
+void ASPH2DSimulatorCPU::ApplyViscosity(int32 ParticleIdx, int32 AnotherParticleIdx, float DeltaSeconds)
 {
 	check(ParticleIdx != AnotherParticleIdx);
 
@@ -387,7 +389,15 @@ void ASPH2DSimulatorCPU::ApplyViscosity(int32 ParticleIdx, int32 AnotherParticle
 	if (DistanceSq < SmoothLenSq
 		&& Densities[AnotherParticleIdx] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
 	{
-		const FVector2D& DiffVel = Velocities[AnotherParticleIdx] - Velocities[ParticleIdx];
+		FVector2D DiffVel;
+		if (bUseWallProjection)
+		{
+			DiffVel = ((Positions[AnotherParticleIdx] - PrevPositions[AnotherParticleIdx]) - (Positions[ParticleIdx] - PrevPositions[ParticleIdx])) / DeltaSeconds;
+		}
+		else
+		{
+			DiffVel = Velocities[AnotherParticleIdx] - Velocities[ParticleIdx];
+		}
 		const FVector2D& ViscosityForce = LaplacianViscosityCoef / Densities[AnotherParticleIdx] * (SmoothLength - DiffPos.Size()) * DiffVel;
 		Accelerations[ParticleIdx] += Viscosity * ViscosityForce / Densities[ParticleIdx];
 	}
@@ -421,9 +431,18 @@ void ASPH2DSimulatorCPU::ApplyWallPenalty(int32 ParticleIdx)
 void ASPH2DSimulatorCPU::Integrate(int32 ParticleIdx, float DeltaSeconds)
 {
 	Accelerations[ParticleIdx] += FVector2D(0.0f, Gravity);
-	// 前進オイラー法
-	Velocities[ParticleIdx] += Accelerations[ParticleIdx] * DeltaSeconds;
-	Positions[ParticleIdx] += Velocities[ParticleIdx] * DeltaSeconds;
+	if (bUseWallProjection)
+	{
+		const FVector2D& NewPosition = Positions[ParticleIdx] + (Positions[ParticleIdx] - PrevPositions[ParticleIdx])+ Accelerations[ParticleIdx] * DeltaSeconds * DeltaSeconds;
+		PrevPositions[ParticleIdx] = Positions[ParticleIdx];
+		Positions[ParticleIdx] = NewPosition;
+	}
+	else
+	{
+		// 前進オイラー法
+		Velocities[ParticleIdx] += Accelerations[ParticleIdx] * DeltaSeconds;
+		Positions[ParticleIdx] += Velocities[ParticleIdx] * DeltaSeconds;
+	}
 }
 
 ASPH2DSimulatorCPU::ASPH2DSimulatorCPU()
