@@ -53,6 +53,7 @@ void ASPH3DSimulatorCPU::BeginPlay()
 	Super::BeginPlay();
 
 	Positions.SetNum(NumParticles);
+	PrevPositions.SetNum(NumParticles);
 	Colors.SetNum(NumParticles);
 	Velocities.SetNum(NumParticles);
 	Accelerations.SetNum(NumParticles);
@@ -64,6 +65,7 @@ void ASPH3DSimulatorCPU::BeginPlay()
 	for (int32 i = 0; i < NumParticles; ++i)
 	{
 		Positions[i] = GetActorLocation() + RandPointInSphere(BoxSphere);
+		PrevPositions[i] = Positions[i];
 	}
 
 	for (int32 i = 0; i < NumParticles; ++i)
@@ -305,12 +307,19 @@ void ASPH3DSimulatorCPU::Simulate(float DeltaSeconds)
 							}
 
 							ApplyPressure(ParticleIdx, AnotherParticleIdx);
-							ApplyViscosity(ParticleIdx, AnotherParticleIdx);
+							ApplyViscosity(ParticleIdx, AnotherParticleIdx, DeltaSeconds);
 						}
 					}
 
-					ApplyWallPenalty(ParticleIdx);
+					if (!bUseWallProjection)
+					{
+						ApplyWallPenalty(ParticleIdx);
+					}
 					Integrate(ParticleIdx, DeltaSeconds);
+					if (bUseWallProjection)
+					{
+						ApplyWallProjection(ParticleIdx);
+					}
 				}
 			}
 		);
@@ -351,11 +360,18 @@ void ASPH3DSimulatorCPU::Simulate(float DeltaSeconds)
 						}
 
 						ApplyPressure(ParticleIdx, AnotherParticleIdx);
-						ApplyViscosity(ParticleIdx, AnotherParticleIdx);
+						ApplyViscosity(ParticleIdx, AnotherParticleIdx, DeltaSeconds);
 					}
 
-					ApplyWallPenalty(ParticleIdx);
+					if (!bUseWallProjection)
+					{
+						ApplyWallPenalty(ParticleIdx);
+					}
 					Integrate(ParticleIdx, DeltaSeconds);
+					if (bUseWallProjection)
+					{
+						ApplyWallProjection(ParticleIdx);
+					}
 				}
 			}
 		);
@@ -409,7 +425,7 @@ void ASPH3DSimulatorCPU::ApplyPressure(int32 ParticleIdx, int32 AnotherParticleI
 	}
 }
 
-void ASPH3DSimulatorCPU::ApplyViscosity(int32 ParticleIdx, int32 AnotherParticleIdx)
+void ASPH3DSimulatorCPU::ApplyViscosity(int32 ParticleIdx, int32 AnotherParticleIdx, float DeltaSeconds)
 {
 	check(ParticleIdx != AnotherParticleIdx);
 
@@ -423,7 +439,15 @@ void ASPH3DSimulatorCPU::ApplyViscosity(int32 ParticleIdx, int32 AnotherParticle
 	if (DistanceSq < SmoothLenSq
 		&& Densities[AnotherParticleIdx] > SMALL_NUMBER) // 0除算と、小さな値の除算ですごく大きな項になるのを回避
 	{
-		const FVector& DiffVel = Velocities[AnotherParticleIdx] - Velocities[ParticleIdx];
+		FVector DiffVel;
+		if (bUseWallProjection)
+		{
+			DiffVel = ((Positions[AnotherParticleIdx] - PrevPositions[AnotherParticleIdx]) - (Positions[ParticleIdx] - PrevPositions[ParticleIdx])) / DeltaSeconds;
+		}
+		else
+		{
+			DiffVel = Velocities[AnotherParticleIdx] - Velocities[ParticleIdx];
+		}
 		const FVector& ViscosityForce = LaplacianViscosityCoef / Densities[AnotherParticleIdx] * (SmoothLength - DiffPos.Size()) * DiffVel;
 		Accelerations[ParticleIdx] += Viscosity * ViscosityForce / Densities[ParticleIdx];
 	}
@@ -458,9 +482,35 @@ void ASPH3DSimulatorCPU::ApplyWallPenalty(int32 ParticleIdx)
 void ASPH3DSimulatorCPU::Integrate(int32 ParticleIdx, float DeltaSeconds)
 {
 	Accelerations[ParticleIdx] += FVector(0.0f, 0.0f, Gravity);
-	// 前進オイラー法
-	Velocities[ParticleIdx] += Accelerations[ParticleIdx] * DeltaSeconds;
-	Positions[ParticleIdx] += Velocities[ParticleIdx] * DeltaSeconds;
+	if (bUseWallProjection)
+	{
+		const FVector& NewPosition = Positions[ParticleIdx] + (Positions[ParticleIdx] - PrevPositions[ParticleIdx])+ Accelerations[ParticleIdx] * DeltaSeconds * DeltaSeconds;
+		PrevPositions[ParticleIdx] = Positions[ParticleIdx];
+		Positions[ParticleIdx] = NewPosition;
+	}
+	else
+	{
+		// 前進オイラー法
+		Velocities[ParticleIdx] += Accelerations[ParticleIdx] * DeltaSeconds;
+		Positions[ParticleIdx] += Velocities[ParticleIdx] * DeltaSeconds;
+	}
+}
+
+void ASPH3DSimulatorCPU::ApplyWallProjection(int32 ParticleIdx)
+{
+	// 計算が楽なので、アクタの位置移動と回転を戻した座標系でパーティクル位置を扱う
+	// 壁の法線方向を使った内積を使うやり方もあるが
+	const FVector& InvActorMovePos = GetActorTransform().InverseTransformPositionNoScale(Positions[ParticleIdx]);
+
+	FVector ProjectedPos = InvActorMovePos;
+	ProjectedPos += FMath::Max(0.0f, InvActorMovePos.Z - WallBox.Max.Z) * WallProjectionAlpha * FVector(0.0f, 0.0f, -1.0f);
+	ProjectedPos += FMath::Max(0.0f, WallBox.Min.Z - InvActorMovePos.Z) * WallProjectionAlpha * FVector(0.0f, 0.0f, 1.0f);
+	ProjectedPos += FMath::Max(0.0f, WallBox.Min.X - InvActorMovePos.X) * WallProjectionAlpha * FVector(1.0f, 0.0f, 0.0f);
+	ProjectedPos += FMath::Max(0.0f, InvActorMovePos.X - WallBox.Max.X) * WallProjectionAlpha * FVector(-1.0f, 0.0f, 0.0f);
+	ProjectedPos += FMath::Max(0.0f, WallBox.Min.Y - InvActorMovePos.Y) * WallProjectionAlpha * FVector(0.0f, 1.0f, 0.0f);
+	ProjectedPos += FMath::Max(0.0f, InvActorMovePos.Y - WallBox.Max.Y) * WallProjectionAlpha * FVector(0.0f, -1.0f, 0.0f);
+
+	Positions[ParticleIdx] = GetActorTransform().TransformVectorNoScale(ProjectedPos);
 }
 
 ASPH3DSimulatorCPU::ASPH3DSimulatorCPU()

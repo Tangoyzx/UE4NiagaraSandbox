@@ -55,6 +55,9 @@ private:
 	bool bUseNeighborGrid3D = true;
 
 	UPROPERTY(EditAnywhere)
+	bool bUseWallProjection = true;
+
+	UPROPERTY(EditAnywhere)
 	int32 NumParticles = 1000;
 
 	UPROPERTY(EditAnywhere)
@@ -65,6 +68,9 @@ private:
 
 	UPROPERTY(EditAnywhere)
 	FBox WallBox = FBox(FVector(-4.5f, -4.5f, -4.5f), FVector(4.5f, 4.5f, 4.5f));
+
+	UPROPERTY(EditAnywhere)
+	float WallProjectionAlpha = 0.2f;
 
 	UPROPERTY(EditAnywhere)
 	float WallStiffness = 3000.0f;
@@ -110,12 +116,14 @@ private:
 	void CalculateDensity(int32 ParticleIdx, int32 AnotherParticleIdx);
 	void CalculatePressure(int32 ParticleIdx);
 	void ApplyPressure(int32 ParticleIdx, int32 AnotherParticleIdx);
-	void ApplyViscosity(int32 ParticleIdx, int32 AnotherParticleIdx);
+	void ApplyViscosity(int32 ParticleIdx, int32 AnotherParticleIdx, float DeltaSeconds);
 	void ApplyWallPenalty(int32 ParticleIdx);
 	void Integrate(int32 ParticleIdx, float DeltaSeconds);
+	void ApplyWallProjection(int32 ParticleIdx);
 
 private:
 	TArray<FVector> Positions;
+	TArray<FVector> PrevPositions;
 	TArray<FLinearColor> Colors;
 	TArray<FVector> Velocities;
 	// 加速度は毎フレーム計算するのでフレーム間のひきつぎはないのだが、使用メモリやTArrayの生成負荷をおさえるために
