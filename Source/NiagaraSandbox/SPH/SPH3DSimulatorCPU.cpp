@@ -510,7 +510,7 @@ void ASPH3DSimulatorCPU::ApplyWallProjection(int32 ParticleIdx)
 	ProjectedPos += FMath::Max(0.0f, WallBox.Min.Y - InvActorMovePos.Y) * WallProjectionAlpha * FVector(0.0f, 1.0f, 0.0f);
 	ProjectedPos += FMath::Max(0.0f, InvActorMovePos.Y - WallBox.Max.Y) * WallProjectionAlpha * FVector(0.0f, -1.0f, 0.0f);
 
-	Positions[ParticleIdx] = GetActorTransform().TransformVectorNoScale(ProjectedPos);
+	Positions[ParticleIdx] = GetActorTransform().TransformPositionNoScale(ProjectedPos);
 }
 
 ASPH3DSimulatorCPU::ASPH3DSimulatorCPU()

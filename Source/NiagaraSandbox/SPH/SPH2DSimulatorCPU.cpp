@@ -471,7 +471,7 @@ void ASPH2DSimulatorCPU::ApplyWallProjection(int32 ParticleIdx)
 	ProjectedPos += FMath::Max(0.0f, WallBox.Min.Y - InvActorMovePos.Z) * FVector(0.0f, 0.0f, 1.0f) * WallProjectionAlpha;
 	ProjectedPos += FMath::Max(0.0f, WallBox.Min.X - InvActorMovePos.Y) * FVector(0.0f, 1.0f, 0.0f) * WallProjectionAlpha;
 	ProjectedPos += FMath::Max(0.0f, InvActorMovePos.Y - WallBox.Max.X) * FVector(0.0f, -1.0f, 0.0f) * WallProjectionAlpha;
-	ProjectedPos = GetActorTransform().TransformVectorNoScale(ProjectedPos);
+	ProjectedPos = GetActorTransform().TransformPositionNoScale(ProjectedPos);
 
 	Positions[ParticleIdx] = FVector2D(ProjectedPos.Y, ProjectedPos.Z);
 }
