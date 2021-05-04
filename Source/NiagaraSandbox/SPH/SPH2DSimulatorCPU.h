@@ -70,6 +70,9 @@ private:
 	FBox2D WallBox = FBox2D(FVector2D(-4.5f, -4.5f), FVector2D(4.5f, 4.5f));
 
 	UPROPERTY(EditAnywhere)
+	float WallProjectionAlpha = 0.2f;
+
+	UPROPERTY(EditAnywhere)
 	float WallStiffness = 3000.0f;
 
 	UPROPERTY(EditAnywhere)
@@ -113,6 +116,7 @@ private:
 	void ApplyViscosity(int32 ParticleIdx, int32 AnotherParticleIdx, float DeltaSeconds);
 	void ApplyWallPenalty(int32 ParticleIdx);
 	void Integrate(int32 ParticleIdx, float DeltaSeconds);
+	void ApplyWallProjection(int32 ParticleIdx);
 
 private:
 	TArray<FVector2D> Positions;

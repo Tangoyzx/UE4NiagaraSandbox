@@ -275,8 +275,15 @@ void ASPH2DSimulatorCPU::Simulate(float DeltaSeconds)
 						}
 					}
 
-					ApplyWallPenalty(ParticleIdx);
+					if (!bUseWallProjection)
+					{
+						ApplyWallPenalty(ParticleIdx);
+					}
 					Integrate(ParticleIdx, DeltaSeconds);
+					if (bUseWallProjection)
+					{
+						ApplyWallProjection(ParticleIdx);
+					}
 				}
 			}
 		);
@@ -320,8 +327,15 @@ void ASPH2DSimulatorCPU::Simulate(float DeltaSeconds)
 						ApplyViscosity(ParticleIdx, AnotherParticleIdx, DeltaSeconds);
 					}
 
-					ApplyWallPenalty(ParticleIdx);
+					if (!bUseWallProjection)
+					{
+						ApplyWallPenalty(ParticleIdx);
+					}
 					Integrate(ParticleIdx, DeltaSeconds);
+					if (bUseWallProjection)
+					{
+						ApplyWallProjection(ParticleIdx);
+					}
 				}
 			}
 		);
@@ -409,7 +423,6 @@ void ASPH2DSimulatorCPU::ApplyWallPenalty(int32 ParticleIdx)
 	const FVector& Position3D = FVector(GetActorLocation().X, Positions[ParticleIdx].X, Positions[ParticleIdx].Y);
 	const FVector& InvActorMovePos = GetActorTransform().InverseTransformPositionNoScale(Position3D);
 
-	//TODO: SPHって言っても加速度使わずにPBD使ってもいいはずなんだよな
 	// 上境界
 	FVector TopAccel = FMath::Max(0.0f, InvActorMovePos.Z - WallBox.Max.Y) * WallStiffness * FVector(0.0f, 0.0f, -1.0f);
 	TopAccel = GetActorTransform().TransformVectorNoScale(TopAccel);
@@ -443,6 +456,24 @@ void ASPH2DSimulatorCPU::Integrate(int32 ParticleIdx, float DeltaSeconds)
 		Velocities[ParticleIdx] += Accelerations[ParticleIdx] * DeltaSeconds;
 		Positions[ParticleIdx] += Velocities[ParticleIdx] * DeltaSeconds;
 	}
+}
+
+void ASPH2DSimulatorCPU::ApplyWallProjection(int32 ParticleIdx)
+{
+	// 計算が楽なので、アクタの位置移動と回転を戻した座標系でパーティクル位置を扱う
+	// 壁の法線方向を使った内積を使うやり方もあるが
+	const FVector& Position3D = FVector(GetActorLocation().X, Positions[ParticleIdx].X, Positions[ParticleIdx].Y);
+	const FVector& InvActorMovePos = GetActorTransform().InverseTransformPositionNoScale(Position3D);
+
+	//TODO: WallProjectionAlphaによる効果はNumIterationの影響が大きい。可変フレームレート対応もできてない
+	FVector ProjectedPos = InvActorMovePos;
+	ProjectedPos += FMath::Max(0.0f, InvActorMovePos.Z - WallBox.Max.Y) * FVector(0.0f, 0.0f, -1.0f) * WallProjectionAlpha;
+	ProjectedPos += FMath::Max(0.0f, WallBox.Min.Y - InvActorMovePos.Z) * FVector(0.0f, 0.0f, 1.0f) * WallProjectionAlpha;
+	ProjectedPos += FMath::Max(0.0f, WallBox.Min.X - InvActorMovePos.Y) * FVector(0.0f, 1.0f, 0.0f) * WallProjectionAlpha;
+	ProjectedPos += FMath::Max(0.0f, InvActorMovePos.Y - WallBox.Max.X) * FVector(0.0f, -1.0f, 0.0f) * WallProjectionAlpha;
+	ProjectedPos = GetActorTransform().TransformVectorNoScale(ProjectedPos);
+
+	Positions[ParticleIdx] = FVector2D(ProjectedPos.Y, ProjectedPos.Z);
 }
 
 ASPH2DSimulatorCPU::ASPH2DSimulatorCPU()
