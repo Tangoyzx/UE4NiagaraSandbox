@@ -393,7 +393,7 @@ void ASPH3DSimulatorCPU::CalculateDensity(int32 ParticleIdx, int32 AnotherPartic
 
 void ASPH3DSimulatorCPU::CalculatePressure(int32 ParticleIdx)
 {
-	Pressures[ParticleIdx] = PressureStiffness * FMath::Max(FMath::Pow(Densities[ParticleIdx] / RestDensity, 7) - 1.0f, 0.0f);
+	Pressures[ParticleIdx] = PressureStiffness * FMath::Max(FMath::Pow(Densities[ParticleIdx] / RestDensity, 3) - 1.0f, 0.0f);
 }
 
 void ASPH3DSimulatorCPU::ApplyPressure(int32 ParticleIdx, int32 AnotherParticleIdx)
