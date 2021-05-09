@@ -318,7 +318,7 @@ void ASPH3DSimulatorCPU::Simulate(float DeltaSeconds)
 					Integrate(ParticleIdx, DeltaSeconds);
 					if (bUseWallProjection)
 					{
-						ApplyWallProjection(ParticleIdx);
+						ApplyWallProjection(ParticleIdx, DeltaSeconds);
 					}
 				}
 			}
@@ -370,7 +370,7 @@ void ASPH3DSimulatorCPU::Simulate(float DeltaSeconds)
 					Integrate(ParticleIdx, DeltaSeconds);
 					if (bUseWallProjection)
 					{
-						ApplyWallProjection(ParticleIdx);
+						ApplyWallProjection(ParticleIdx, DeltaSeconds);
 					}
 				}
 			}
@@ -487,15 +487,6 @@ void ASPH3DSimulatorCPU::Integrate(int32 ParticleIdx, float DeltaSeconds)
 		const FVector& NewPosition = Positions[ParticleIdx] + (Positions[ParticleIdx] - PrevPositions[ParticleIdx])+ Accelerations[ParticleIdx] * DeltaSeconds * DeltaSeconds;
 		PrevPositions[ParticleIdx] = Positions[ParticleIdx];
 		Positions[ParticleIdx] = NewPosition;
-
-		// MaxVelocityによるクランプ
-		FVector VelocityNormalized;
-		float Velocity;
-		((Positions[ParticleIdx] - PrevPositions[ParticleIdx]) / DeltaSeconds).ToDirectionAndLength(VelocityNormalized, Velocity);
-		if (Velocity > MaxVelocity)
-		{
-			Positions[ParticleIdx] = VelocityNormalized * MaxVelocity * DeltaSeconds;
-		}
 	}
 	else
 	{
@@ -515,7 +506,7 @@ void ASPH3DSimulatorCPU::Integrate(int32 ParticleIdx, float DeltaSeconds)
 	}
 }
 
-void ASPH3DSimulatorCPU::ApplyWallProjection(int32 ParticleIdx)
+void ASPH3DSimulatorCPU::ApplyWallProjection(int32 ParticleIdx, float DeltaSeconds)
 {
 	// 計算が楽なので、アクタの位置移動と回転を戻した座標系でパーティクル位置を扱う
 	// 壁の法線方向を使った内積を使うやり方もあるが
@@ -530,6 +521,15 @@ void ASPH3DSimulatorCPU::ApplyWallProjection(int32 ParticleIdx)
 	ProjectedPos += FMath::Max(0.0f, InvActorMovePos.Y - WallBox.Max.Y) * WallProjectionAlpha * FVector(0.0f, -1.0f, 0.0f);
 
 	Positions[ParticleIdx] = GetActorTransform().TransformPositionNoScale(ProjectedPos);
+
+	// MaxVelocityによるクランプ
+	FVector VelocityNormalized;
+	float Velocity;
+	((Positions[ParticleIdx] - PrevPositions[ParticleIdx]) / DeltaSeconds).ToDirectionAndLength(VelocityNormalized, Velocity);
+	if (Velocity > MaxVelocity)
+	{
+		Positions[ParticleIdx] = VelocityNormalized * MaxVelocity * DeltaSeconds;
+	}
 }
 
 ASPH3DSimulatorCPU::ASPH3DSimulatorCPU()

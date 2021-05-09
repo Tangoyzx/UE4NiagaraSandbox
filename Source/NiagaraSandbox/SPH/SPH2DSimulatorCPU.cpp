@@ -282,7 +282,7 @@ void ASPH2DSimulatorCPU::Simulate(float DeltaSeconds)
 					Integrate(ParticleIdx, DeltaSeconds);
 					if (bUseWallProjection)
 					{
-						ApplyWallProjection(ParticleIdx);
+						ApplyWallProjection(ParticleIdx, DeltaSeconds);
 					}
 				}
 			}
@@ -334,7 +334,7 @@ void ASPH2DSimulatorCPU::Simulate(float DeltaSeconds)
 					Integrate(ParticleIdx, DeltaSeconds);
 					if (bUseWallProjection)
 					{
-						ApplyWallProjection(ParticleIdx);
+						ApplyWallProjection(ParticleIdx, DeltaSeconds);
 					}
 				}
 			}
@@ -449,15 +449,6 @@ void ASPH2DSimulatorCPU::Integrate(int32 ParticleIdx, float DeltaSeconds)
 		const FVector2D& NewPosition = Positions[ParticleIdx] + (Positions[ParticleIdx] - PrevPositions[ParticleIdx])+ Accelerations[ParticleIdx] * DeltaSeconds * DeltaSeconds;
 		PrevPositions[ParticleIdx] = Positions[ParticleIdx];
 		Positions[ParticleIdx] = NewPosition;
-
-		// MaxVelocityによるクランプ
-		FVector2D VelocityNormalized;
-		float Velocity;
-		((Positions[ParticleIdx] - PrevPositions[ParticleIdx]) / DeltaSeconds).ToDirectionAndLength(VelocityNormalized, Velocity);
-		if (Velocity > MaxVelocity)
-		{
-			Positions[ParticleIdx] = VelocityNormalized * MaxVelocity * DeltaSeconds;
-		}
 	}
 	else
 	{
@@ -477,7 +468,7 @@ void ASPH2DSimulatorCPU::Integrate(int32 ParticleIdx, float DeltaSeconds)
 	}
 }
 
-void ASPH2DSimulatorCPU::ApplyWallProjection(int32 ParticleIdx)
+void ASPH2DSimulatorCPU::ApplyWallProjection(int32 ParticleIdx, float DeltaSeconds)
 {
 	// 計算が楽なので、アクタの位置移動と回転を戻した座標系でパーティクル位置を扱う
 	// 壁の法線方向を使った内積を使うやり方もあるが
@@ -493,6 +484,15 @@ void ASPH2DSimulatorCPU::ApplyWallProjection(int32 ParticleIdx)
 	ProjectedPos = GetActorTransform().TransformPositionNoScale(ProjectedPos);
 
 	Positions[ParticleIdx] = FVector2D(ProjectedPos.Y, ProjectedPos.Z);
+
+	// MaxVelocityによるクランプ
+	FVector2D VelocityNormalized;
+	float Velocity;
+	((Positions[ParticleIdx] - PrevPositions[ParticleIdx]) / DeltaSeconds).ToDirectionAndLength(VelocityNormalized, Velocity);
+	if (Velocity > MaxVelocity)
+	{
+		Positions[ParticleIdx] = VelocityNormalized * MaxVelocity * DeltaSeconds;
+	}
 }
 
 ASPH2DSimulatorCPU::ASPH2DSimulatorCPU()

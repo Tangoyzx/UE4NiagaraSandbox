@@ -122,7 +122,7 @@ private:
 	void ApplyViscosity(int32 ParticleIdx, int32 AnotherParticleIdx, float DeltaSeconds);
 	void ApplyWallPenalty(int32 ParticleIdx);
 	void Integrate(int32 ParticleIdx, float DeltaSeconds);
-	void ApplyWallProjection(int32 ParticleIdx);
+	void ApplyWallProjection(int32 ParticleIdx, float DeltaSeconds);
 
 private:
 	TArray<FVector> Positions;
