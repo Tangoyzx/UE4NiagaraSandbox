@@ -449,11 +449,30 @@ void ASPH2DSimulatorCPU::Integrate(int32 ParticleIdx, float DeltaSeconds)
 		const FVector2D& NewPosition = Positions[ParticleIdx] + (Positions[ParticleIdx] - PrevPositions[ParticleIdx])+ Accelerations[ParticleIdx] * DeltaSeconds * DeltaSeconds;
 		PrevPositions[ParticleIdx] = Positions[ParticleIdx];
 		Positions[ParticleIdx] = NewPosition;
+
+		// MaxVelocityによるクランプ
+		FVector2D VelocityNormalized;
+		float Velocity;
+		((Positions[ParticleIdx] - PrevPositions[ParticleIdx]) / DeltaSeconds).ToDirectionAndLength(VelocityNormalized, Velocity);
+		if (Velocity > MaxVelocity)
+		{
+			Positions[ParticleIdx] = VelocityNormalized * MaxVelocity * DeltaSeconds;
+		}
 	}
 	else
 	{
 		// 前進オイラー法
 		Velocities[ParticleIdx] += Accelerations[ParticleIdx] * DeltaSeconds;
+
+		// MaxVelocityによるクランプ
+		FVector2D VelocityNormalized;
+		float Velocity;
+		Velocities[ParticleIdx].ToDirectionAndLength(VelocityNormalized, Velocity);
+		if (Velocity > MaxVelocity)
+		{
+			Velocities[ParticleIdx] = VelocityNormalized * MaxVelocity;
+		}
+
 		Positions[ParticleIdx] += Velocities[ParticleIdx] * DeltaSeconds;
 	}
 }

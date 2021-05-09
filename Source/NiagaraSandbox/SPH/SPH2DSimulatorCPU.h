@@ -94,6 +94,9 @@ private:
 	float Viscosity = 3.0f;
 
 	UPROPERTY(EditAnywhere)
+	float MaxVelocity = 60.0f; // 1.0cm by one frame of 60FPS
+
+	UPROPERTY(EditAnywhere)
 	float InitPosRadius = 4.0f;
 
 	UPROPERTY(EditAnywhere)

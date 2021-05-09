@@ -97,6 +97,9 @@ private:
 	float InitPosRadius = 4.0f;
 
 	UPROPERTY(EditAnywhere)
+	float MaxVelocity = 60.0f; // 1.0cm by one frame of 60FPS
+
+	UPROPERTY(EditAnywhere)
 	int32 NumCellsX = 10;
 
 	UPROPERTY(EditAnywhere)
