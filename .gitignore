@@ -72,3 +72,14 @@ Plugins/*/Intermediate/*
 
 # Cache files for the editor to use
 DerivedDataCache/*
+/Content/ExampleContent
+/Content/Developers/wyethjohnson/Generative
+/Content/DemoRoom
+/Content/Character
+/Content/Blueprints
+/Content/Assets/Meshes
+/Content/Animations
+/Content/Maps/Niagara_Advanced.umap
+/Content/Maps/Niagara.umap
+/Content/NiagaraSimulationStages
+/Content/NiagaraSimulationStages.zip
