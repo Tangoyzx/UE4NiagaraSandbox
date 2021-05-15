@@ -528,7 +528,7 @@ void ASPH3DSimulatorCPU::ApplyWallProjection(int32 ParticleIdx, float DeltaSecon
 	((Positions[ParticleIdx] - PrevPositions[ParticleIdx]) / DeltaSeconds).ToDirectionAndLength(VelocityNormalized, Velocity);
 	if (Velocity > MaxVelocity)
 	{
-		Positions[ParticleIdx] = VelocityNormalized * MaxVelocity * DeltaSeconds;
+		Positions[ParticleIdx] = VelocityNormalized * MaxVelocity * DeltaSeconds + PrevPositions[ParticleIdx];
 	}
 }
 
